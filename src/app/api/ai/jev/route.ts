@@ -11,11 +11,7 @@ import {
   PINNED_JEV_MODEL,
   classifyZombiesHeuristic,
   evaluateClosePolicy,
-  routeAndCheckHeuristic,
-  type IntentAndSafetyResult,
-  type IntentKind,
   type JevApiResponse,
-  type SimulationSafetySummary,
   type TokenKind,
   type ZombieCandidateInput,
   type ZombieClassification,
@@ -25,8 +21,6 @@ const JEV_TIMEOUT_MS = 3500;
 
 interface JevRequestBody {
   candidates?: ZombieCandidateInput[];
-  commandText?: string;
-  simulationSummary?: SimulationSafetySummary;
 }
 
 const TOKEN_KIND_CRITERIA = {
@@ -40,17 +34,6 @@ const TOKEN_KIND_CRITERIA = {
     "Liquid ecosystem token such as wrapped SOL, JUP, BONK, or RAY",
   unknown:
     "Unverified or ambiguous token where automatic closure carries risk",
-} as const;
-
-const INTENT_CRITERIA = {
-  pay_with_memo:
-    "Send a single SOL payment to one recipient address with an optional invoice/reference memo",
-  split_payment:
-    "Split a SOL payment across two recipient addresses with a shared memo",
-  cleanup_only:
-    "Reclaim rent from empty zombie token accounts without sending SOL to an external recipient",
-  unsupported:
-    "Request outside payment or token-account rent cleanup scope",
 } as const;
 
 export async function POST(request: Request) {
@@ -67,9 +50,6 @@ export async function POST(request: Request) {
   }
 
   const candidates = Array.isArray(body.candidates) ? body.candidates : [];
-  const commandText =
-    typeof body.commandText === "string" ? body.commandText : undefined;
-  const simulationSummary = body.simulationSummary;
 
   const apiKey = process.env.TYPESAFE_API_KEY?.trim();
   if (!apiKey) {
@@ -82,10 +62,6 @@ export async function POST(request: Request) {
       classifications:
         candidates.length > 0
           ? classifyZombiesHeuristic(candidates)
-          : undefined,
-      intentResult:
-        commandText !== undefined
-          ? routeAndCheckHeuristic(commandText, simulationSummary)
           : undefined,
     };
     return NextResponse.json(fallbackResponse);
@@ -100,10 +76,8 @@ export async function POST(request: Request) {
     });
 
     let classifications: ZombieClassification[] | undefined;
-    let intentResult: IntentAndSafetyResult | undefined;
     let resolvedModel = PINNED_JEV_MODEL;
 
-    // Call 1 — Batched Zombie Account Classifier (one systemOne call for all candidate accounts)
     if (candidates.length > 0) {
       const questions: Questions = {};
       const stateCandidates = candidates.map((c, idx) => {
@@ -204,89 +178,12 @@ export async function POST(request: Request) {
       });
     }
 
-    // Call 2 — Intent Router + Pre-Sign Advisory Check
-    if (commandText !== undefined) {
-      const intentQuestions: Questions = {
-        intent: choice(
-          "Classify the user's Solana transaction command into the matching execution route.",
-          INTENT_CRITERIA
-        ),
-      };
-
-      if (simulationSummary) {
-        intentQuestions.is_safe_to_sign = noul(
-          "Given the pre-flight simulation result and balance-diff summary, does this transaction match the user's payment intent without unexpected balance drain or simulation failure?",
-          {
-            true: "Simulation succeeded (ok: true), logs show clean execution, and net balance change equals transfer minus fees plus reclaimed rent",
-            false:
-              "Simulation failed, logs contain runtime errors, or balance drain exceeds the requested transfer and network fee",
-          }
-        );
-      }
-
-      const res2 = await client.systemOne({
-        model: PINNED_JEV_MODEL,
-        state: {
-          commandText,
-          simulationSummary: simulationSummary
-            ? {
-                ok: simulationSummary.ok,
-                unitsConsumed: simulationSummary.unitsConsumed,
-                logsTail: simulationSummary.logsTail,
-                transferLamports: simulationSummary.transferLamports,
-                feeLamports: simulationSummary.feeLamports,
-                reclaimedLamports: simulationSummary.reclaimedLamports,
-                netLamports: simulationSummary.netLamports,
-                closesCount: simulationSummary.closesCount,
-                recipient: simulationSummary.recipient,
-              }
-            : null,
-        },
-        questions: intentQuestions,
-      });
-
-      resolvedModel = res2.model || resolvedModel;
-
-      const intentAns = res2.answers.intent as
-        | ChoiceResponse<typeof INTENT_CRITERIA>
-        | undefined;
-      const safeAns = res2.answers.is_safe_to_sign as NoulResponse | undefined;
-
-      const intent: IntentKind = intentAns?.choice ?? "pay_with_memo";
-      const safeProb =
-        typeof safeAns?.noul === "number" ? safeAns.noul : null;
-      const simOk = simulationSummary ? simulationSummary.ok : true;
-
-      // Advisory badge: never overrides a failed simulation
-      const isSafeAdvisory = simOk && (safeProb === null || safeProb >= 0.5);
-
-      intentResult = {
-        intent,
-        intentConfidence:
-          typeof intentAns?.confidence === "number"
-            ? intentAns.confidence
-            : null,
-        intentProbabilities: intentAns?.probabilities
-          ? { ...intentAns.probabilities }
-          : null,
-        safeToSignProbability: safeProb,
-        isSafeAdvisory,
-        advisoryNote: !simOk
-          ? "Simulation failed — transaction blocked from signing."
-          : safeProb !== null
-            ? `Jev pre-sign check: ${(safeProb * 100).toFixed(0)}% safe-to-sign probability on simulated logs & balance diff.`
-            : `Jev routed command as ${intent.replace(/_/g, " ")}.`,
-        source: "jev",
-      };
-    }
-
     const latencyMs = Math.round(performance.now() - startTime);
     const response: JevApiResponse = {
       mode: "jev",
       model: resolvedModel,
       latencyMs,
       classifications,
-      intentResult,
     };
 
     return NextResponse.json(response);
@@ -301,10 +198,6 @@ export async function POST(request: Request) {
       classifications:
         candidates.length > 0
           ? classifyZombiesHeuristic(candidates)
-          : undefined,
-      intentResult:
-        commandText !== undefined
-          ? routeAndCheckHeuristic(commandText, simulationSummary)
           : undefined,
     };
     return NextResponse.json(fallbackResponse);

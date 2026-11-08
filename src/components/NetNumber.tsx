@@ -31,7 +31,6 @@ export function NetNumber({
 }: NetNumberProps) {
   const netSol = netLamports / LAMPORTS_PER_SOL;
 
-  // Format SOL amount
   const formatNumber = (num: number) => {
     const absVal = Math.abs(num).toFixed(6);
     if (num > 0) return `+${absVal}`;
@@ -41,7 +40,6 @@ export function NetNumber({
 
   const targetFormatted = formatNumber(netSol);
 
-  // Scramble text animation on balance changes
   const [displayText, setDisplayText] = useState<string>(targetFormatted);
   const prevTargetRef = useRef<string>(targetFormatted);
 
@@ -64,7 +62,6 @@ export function NetNumber({
         return;
       }
 
-      // Progressively resolve digits from left to right
       const resolvedChars = Math.floor(progress * targetFormatted.length);
       let scrambled = "";
       for (let i = 0; i < targetFormatted.length; i++) {
@@ -88,8 +85,8 @@ export function NetNumber({
   const usdValue = Math.abs(netSol * solPriceUsd).toFixed(2);
 
   return (
-    <div className="flex flex-col justify-start w-full pr-4">
-      <div className="text-xs font-mono text-[#888882] mb-2">
+    <div className="flex flex-col justify-start w-full pr-4 font-sans">
+      <div className="text-xs text-[#A1A19A] mb-1.5">
         You end up with
       </div>
 
@@ -119,7 +116,7 @@ export function NetNumber({
       </div>
 
       {/* USD Estimate */}
-      <div className="mt-2 text-xs font-mono text-[#888882]">
+      <div className="mt-1.5 text-xs font-mono text-[#888882] tabular-nums">
         {error ? (
           <span>—</span>
         ) : isCompiling ? (
@@ -131,32 +128,32 @@ export function NetNumber({
 
       {/* Error state alert */}
       {error && !isCompiling && (
-        <div className="mt-4 border-l-2 border-[#FF5A1F] bg-[#FF5A1F]/5 px-3 py-2 text-xs font-mono text-[#FF5A1F]">
+        <div className="mt-4 border-l-2 border-[#FF5A1F] bg-[#FF5A1F]/5 px-3 py-2 text-xs font-sans text-[#FF5A1F]">
           {error}
         </div>
       )}
 
       {/* Done / Receipt State */}
       {receipt && (
-        <div className="mt-5 p-3.5 bg-[#121210] border border-[#232320] rounded-[2px] font-mono text-xs flex flex-col gap-2.5 animate-in fade-in duration-300">
+        <div className="mt-4 p-3.5 bg-[#121210] border border-[#232320] rounded-[2px] font-sans text-xs flex flex-col gap-2.5 animate-in fade-in duration-300">
           <div className="flex items-center justify-between">
-            <span className="text-[#D8F5C8] font-semibold text-xs flex items-center gap-1.5">
+            <span className="text-[#D8F5C8] font-medium text-xs flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-[#D8F5C8] inline-block animate-pulse" />
               <span>Confirmed on Devnet</span>
             </span>
-            <span className="text-[10px] text-[#888882]">Saved on-chain</span>
+            <span className="text-[11px] text-[#888882]">Saved on-chain</span>
           </div>
 
-          <div className="space-y-1 pt-1 border-t border-[#1C1C1A] text-[11px]">
+          <div className="space-y-1 pt-1 border-t border-[#1C1C1A] text-xs">
             <div className="text-[#888882] flex justify-between">
-              <span>Before:</span>
-              <span className="text-[#EDEDEC] tabular-nums">
+              <span>Before</span>
+              <span className="font-mono text-[#EDEDEC] tabular-nums">
                 {(receipt.preBalanceLamports / LAMPORTS_PER_SOL).toFixed(6)} SOL
               </span>
             </div>
             <div className="text-[#888882] flex justify-between">
-              <span>After:</span>
-              <span className="text-[#D8F5C8] tabular-nums font-semibold">
+              <span>After</span>
+              <span className="font-mono text-[#D8F5C8] tabular-nums font-medium">
                 {(receipt.postBalanceLamports / LAMPORTS_PER_SOL).toFixed(6)} SOL
               </span>
             </div>
@@ -167,7 +164,7 @@ export function NetNumber({
               href={`https://solscan.io/tx/${receipt.signature}?cluster=devnet`}
               target="_blank"
               rel="noreferrer"
-              className="text-[#EDEDEC] hover:text-[#FF5A1F] transition-colors flex items-center gap-1.5 text-[11px] underline underline-offset-4"
+              className="text-[#EDEDEC] hover:text-[#FF5A1F] transition-colors flex items-center gap-1.5 text-xs underline underline-offset-4"
             >
               <Image src="/icons/solscan.png" alt="Solscan" width={14} height={14} className="rounded-full" />
               <span>Solscan</span>
@@ -179,16 +176,16 @@ export function NetNumber({
                 <button
                   type="button"
                   onClick={onOpenActivity}
-                  className="text-[#FF5A1F] hover:text-[#ff7843] transition-colors underline underline-offset-4 cursor-pointer text-[11px]"
+                  className="text-[#FF5A1F] hover:text-[#ff7843] transition-colors underline underline-offset-4 cursor-pointer text-xs"
                 >
-                  View in Activity →
+                  View in Activity
                 </button>
               )}
               {onReset && (
                 <button
                   type="button"
                   onClick={onReset}
-                  className="text-[#888882] hover:text-[#EDEDEC] transition-colors underline underline-offset-4 cursor-pointer text-[11px]"
+                  className="text-[#888882] hover:text-[#EDEDEC] transition-colors underline underline-offset-4 cursor-pointer text-xs"
                 >
                   Send another
                 </button>

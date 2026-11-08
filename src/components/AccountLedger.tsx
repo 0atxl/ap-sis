@@ -4,14 +4,12 @@ import React from "react";
 import Image from "next/image";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScannedZombieAccount } from "@/lib/zombies";
-import { OptimizationMode } from "@/lib/compiler";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 interface AccountLedgerProps {
   recipient: string;
   transferLamports: number;
   feeLamports: number;
-  optMode?: OptimizationMode;
   zombies: ScannedZombieAccount[];
   onToggle: (address: string) => void;
   tokenMetaMap: Record<string, { symbol: string; displayName: string }>;
@@ -35,7 +33,6 @@ export function AccountLedger({
   recipient,
   transferLamports,
   feeLamports,
-  optMode = "cheapest",
   zombies,
   onToggle,
   tokenMetaMap,
@@ -73,102 +70,109 @@ export function AccountLedger({
   };
 
   return (
-    <div className="flex flex-col gap-1.5 font-mono text-xs sm:text-sm text-[#EDEDEC] w-full">
+    <div className="flex flex-col gap-1 font-sans text-xs sm:text-sm text-[#EDEDEC] w-full">
       {/* Payment Line */}
       <div className="flex items-center justify-between py-1.5 px-2 -mx-2 hover:bg-[#141413]/50 rounded-[2px] transition-colors">
         <span className="shrink-0 text-[#EDEDEC] flex items-center gap-1.5">
           <Image src="/icons/sol.png" alt="SOL" width={14} height={14} className="rounded-full inline-block" />
           <span>
-            {transferLamports > 0
-              ? `Payment to ${formatShortAddress(recipient)}`
-              : "Rent sweep only (no transfer)"}
+            Sent to{" "}
+            <span className="font-mono text-[#A1A19A]">
+              {formatShortAddress(recipient)}
+            </span>
           </span>
         </span>
-        <span className="flex-1 mx-2 dot-leader min-w-4 h-2 self-center translate-y-[2px]" />
-        <span className="tabular-nums text-[#EDEDEC] shrink-0">
-          {transferLamports > 0 ? `-${paymentSol.toFixed(6)}` : "0.000000"}
+        <span className="flex-1 mx-3 h-[1px] dot-leader self-center opacity-40" />
+        <span className="shrink-0 font-mono tabular-nums text-[#EDEDEC]">
+          -{paymentSol.toFixed(6)} SOL
         </span>
       </div>
 
       {/* Network Fee Line */}
       <div className="flex items-center justify-between py-1.5 px-2 -mx-2 hover:bg-[#141413]/50 rounded-[2px] transition-colors">
-        <span className="shrink-0 text-[#EDEDEC] flex items-center gap-1.5">
-          <span>Network fee</span>
-          <span className="text-[10px] text-[#D8F5C8] font-normal border border-[#D8F5C8]/30 px-1 py-0.2 rounded-[2px]">
-            {optMode === "fastest" ? "5.7× prio" : "-82% prio"}
-          </span>
+        <span className="shrink-0 text-[#A1A19A]">
+          Network fee
         </span>
-        <span className="flex-1 mx-2 dot-leader min-w-4 h-2 self-center translate-y-[2px]" />
-        <span className="tabular-nums text-[#EDEDEC] shrink-0">
-          -{feeSol.toFixed(6)}
+        <span className="flex-1 mx-3 h-[1px] dot-leader self-center opacity-40" />
+        <span className="shrink-0 font-mono tabular-nums text-[#A1A19A]">
+          -{feeSol.toFixed(6)} SOL
         </span>
       </div>
 
-      {/* Empty Token Accounts */}
+      {/* Section Header */}
+      <div className="flex items-center justify-between pt-3 pb-1">
+        <span className="text-xs text-[#888882]">
+          Empty accounts to close {!connected && "(sample)"}
+        </span>
+        {connected && zombies.length === 0 && onSeedZombies && (
+          <button
+            type="button"
+            onClick={onSeedZombies}
+            disabled={seedBusy}
+            className="text-xs text-[#FF5A1F] hover:text-[#ff7843] disabled:opacity-50 transition-colors cursor-pointer underline underline-offset-4"
+          >
+            {seedBusy ? "Seeding..." : "+ Seed 3 test accounts"}
+          </button>
+        )}
+      </div>
+
+      {/* Zombie Account Rows */}
       {zombies.length === 0 ? (
-        <div className="flex items-center justify-between py-2 px-2 -mx-2 text-[#73736E] text-xs">
-          <span>No empty accounts in wallet</span>
-          {connected && onSeedZombies && (
-            <button
-              type="button"
-              onClick={onSeedZombies}
-              disabled={seedBusy}
-              className="text-xs font-mono text-[#FF5A1F] hover:text-[#ff7843] disabled:opacity-50 transition-colors cursor-pointer underline underline-offset-4"
-            >
-              {seedBusy ? "Seeding..." : "[+ Seed 3 test accounts]"}
-            </button>
-          )}
+        <div className="py-4 text-xs text-[#73736E]">
+          No empty token accounts found in this wallet.
         </div>
       ) : (
-        zombies.map((z) => {
-          const rentSol = z.rentLamports / LAMPORTS_PER_SOL;
-          const isSelected = !!z.selectedForClose;
-          const symbol = tokenMetaMap[z.address]?.symbol || z.symbol || "TOKEN";
-          const iconSrc = getTokenIcon(symbol, z.name);
+        <div className="flex flex-col gap-0.5">
+          {zombies.map((z) => {
+            const rentSol = z.rentLamports / LAMPORTS_PER_SOL;
+            const iconPath = getTokenIcon(z.symbol, z.name);
+            const checked = z.selectedForClose;
 
-          return (
-            <div
-              key={z.address}
-              onClick={() => onToggle(z.address)}
-              className="flex items-center justify-between py-1.5 px-2 -mx-2 hover:bg-[#141413] rounded-[2px] cursor-pointer select-none group transition-colors"
-            >
-              <div className="flex items-center gap-2 min-w-0 pr-1 pointer-events-none">
-                <Checkbox
-                  checked={isSelected}
-                  className="rounded-[2px] border-[#3E3E3A] bg-transparent data-[state=checked]:bg-[#EDEDEC] data-[state=checked]:text-[#0C0C0B]"
-                />
-                {iconSrc ? (
-                  <Image
-                    src={iconSrc}
-                    alt={symbol}
-                    width={14}
-                    height={14}
-                    className="rounded-full object-contain shrink-0"
+            return (
+              <label
+                key={z.address}
+                className="flex items-center justify-between py-1.5 px-2 -mx-2 hover:bg-[#141413] rounded-[2px] transition-colors cursor-pointer select-none group"
+              >
+                <div className="flex items-center gap-2.5 min-w-0 shrink">
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={() => onToggle(z.address)}
                   />
-                ) : (
-                  <span className="w-3.5 h-3.5 rounded-full bg-[#1C1C1A] border border-[#2E2E2A] flex items-center justify-center text-[8px] font-mono text-[#A1A19A] shrink-0">
-                    {symbol.slice(0, 1)}
+                  {iconPath ? (
+                    <Image
+                      src={iconPath}
+                      alt={z.symbol || "token"}
+                      width={16}
+                      height={16}
+                      className="rounded-full shrink-0"
+                    />
+                  ) : (
+                    <span className="w-4 h-4 rounded-full bg-[#232320] text-[9px] font-mono flex items-center justify-center text-[#A1A19A] shrink-0">
+                      {(z.symbol || "T").slice(0, 1)}
+                    </span>
+                  )}
+                  <span
+                    className={`truncate ${
+                      checked ? "text-[#EDEDEC]" : "text-[#73736E]"
+                    }`}
+                  >
+                    {getVerdictLabel(z)}
                   </span>
-                )}
+                </div>
+
+                <span className="flex-1 mx-3 h-[1px] dot-leader self-center opacity-30 min-w-[16px]" />
+
                 <span
-                  className={`truncate transition-colors ${
-                    isSelected ? "text-[#EDEDEC]" : "text-[#73736E]"
+                  className={`shrink-0 font-mono tabular-nums ${
+                    checked ? "text-[#D8F5C8]" : "text-[#73736E]"
                   }`}
                 >
-                  {getVerdictLabel(z)}
+                  {checked ? `+${rentSol.toFixed(6)} SOL` : "0.000000 SOL"}
                 </span>
-              </div>
-              <span className="flex-1 mx-2 dot-leader min-w-4 h-2 self-center translate-y-[2px]" />
-              <span
-                className={`tabular-nums shrink-0 font-mono transition-colors ${
-                  isSelected ? "text-[#D8F5C8] font-semibold" : "text-[#555550]"
-                }`}
-              >
-                {isSelected ? `+${rentSol.toFixed(6)}` : "—"}
-              </span>
-            </div>
-          );
-        })
+              </label>
+            );
+          })}
+        </div>
       )}
     </div>
   );

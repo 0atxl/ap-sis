@@ -186,11 +186,11 @@ body {
 }
 
 .wallet-adapter-modal-title {
-  font-family: var(--font-geist-mono), monospace !important;
-  font-size: 0.8125rem !important;
+  font-family: var(--font-geist-sans), sans-serif !important;
+  font-size: 0.9375rem !important;
   font-weight: 600 !important;
-  letter-spacing: 0.05em !important;
-  text-transform: uppercase !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
   color: #EDEDEC !important;
   padding: 0 0 0.875rem 0 !important;
   text-align: left !important;
@@ -276,10 +276,10 @@ body {
 
 .wallet-adapter-modal-list .wallet-adapter-button span {
   margin-left: auto !important;
-  font-size: 0.6875rem !important;
-  font-family: var(--font-geist-mono), monospace !important;
-  letter-spacing: 0.05em !important;
-  text-transform: uppercase !important;
+  font-size: 0.75rem !important;
+  font-family: var(--font-geist-sans), sans-serif !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
   color: #888882 !important;
   opacity: 1 !important;
 }

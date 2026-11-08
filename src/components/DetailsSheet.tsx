@@ -36,6 +36,7 @@ interface DetailsSheetProps {
   activeTab?: string;
   onTabChange?: (tab: string) => void;
   onClearActivity?: () => void;
+  isPreview?: boolean;
 }
 
 const DOT_COUNT = 44;
@@ -131,6 +132,7 @@ export function DetailsSheet({
   activeTab: controlledTab,
   onTabChange,
   onClearActivity,
+  isPreview = false,
 }: DetailsSheetProps) {
   const [internalTab, setInternalTab] = useState("summary");
   const activeTab = controlledTab ?? internalTab;
@@ -174,9 +176,9 @@ export function DetailsSheet({
         "Compute budget set: micro-lamports 1500",
         "Transfer 0.001000 SOL to recipient",
         'Memo "Invoice #42"',
-        "Close account 7xKXt...sgAsU",
-        "Close account 9aBcD...DEFGH",
-        "Close account 3kLmN...g2CW8",
+        "Sample close account 7xKX...sU (preview)",
+        "Sample close account 9aBc...W1 (preview)",
+        "Sample close account 3kLm...5y (preview)",
         "Compute used 33,839",
         "Accounts loaded 75,092 B",
         "Result success",
@@ -189,23 +191,23 @@ export function DetailsSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md bg-[#0C0C0B] border-l border-[#232320] text-[#EDEDEC] p-6 overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-md bg-[#0C0C0B] border-l border-[#232320] text-[#EDEDEC] p-6 overflow-y-auto font-sans">
         <SheetHeader className="flex flex-row items-center justify-between pb-3 border-b border-[#232320]">
-          <SheetTitle className="text-base sm:text-lg font-bold tracking-tight text-[#EDEDEC] font-mono uppercase">
-            Details &amp; Activity
+          <SheetTitle className="text-base sm:text-lg font-semibold tracking-tight text-[#EDEDEC] font-sans">
+            Details
           </SheetTitle>
           <SheetClose asChild>
             <button
               type="button"
-              className="text-xs font-mono text-[#888882] hover:text-[#EDEDEC] transition-colors cursor-pointer outline-none px-2 py-1 rounded-[2px] hover:bg-[#141413] border border-transparent hover:border-[#232320]"
+              className="text-xs font-sans text-[#888882] hover:text-[#EDEDEC] transition-colors cursor-pointer outline-none px-2 py-1 rounded-[2px] hover:bg-[#141413] border border-transparent hover:border-[#232320]"
             >
-              [Close]
+              Close
             </button>
           </SheetClose>
         </SheetHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-          <TabsList className="border-b border-[#232320] gap-4 sm:gap-6 flex-wrap h-auto pb-1">
+          <TabsList className="border-b border-[#232320] gap-4 sm:gap-6 flex-wrap h-auto pb-1 font-sans">
             <TabsTrigger value="summary" className="relative cursor-pointer">
               Summary
               {activeTab === "summary" && (
@@ -216,7 +218,7 @@ export function DetailsSheet({
               )}
             </TabsTrigger>
             <TabsTrigger value="accounts" className="relative cursor-pointer">
-              Accounts
+              {isPreview ? "Sample accounts" : "Accounts"}
               {activeTab === "accounts" && (
                 <motion.div
                   layoutId="detailsTabUnderline"
@@ -225,7 +227,7 @@ export function DetailsSheet({
               )}
             </TabsTrigger>
             <TabsTrigger value="logs" className="relative cursor-pointer">
-              Logs
+              {isPreview ? "Sample logs" : "Logs"}
               {activeTab === "logs" && (
                 <motion.div
                   layoutId="detailsTabUnderline"
@@ -233,38 +235,38 @@ export function DetailsSheet({
                 />
               )}
             </TabsTrigger>
-            <TabsTrigger value="activity" className="relative cursor-pointer flex items-center gap-1.5">
-              <span>Activity</span>
-              {activityHistory.length > 0 && (
-                <span className="text-[10px] bg-[#FF5A1F] text-[#0C0C0B] px-1 py-0.2 rounded-full font-bold tabular-nums">
+            {activityHistory.length > 0 && (
+              <TabsTrigger value="activity" className="relative cursor-pointer flex items-center gap-1.5">
+                <span>Activity</span>
+                <span className="text-[10px] font-mono bg-[#FF5A1F] text-[#0C0C0B] px-1 py-0.2 rounded-full font-bold tabular-nums">
                   {activityHistory.length}
                 </span>
-              )}
-              {activeTab === "activity" && (
-                <motion.div
-                  layoutId="detailsTabUnderline"
-                  className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#FF5A1F]"
-                />
-              )}
-            </TabsTrigger>
+                {activeTab === "activity" && (
+                  <motion.div
+                    layoutId="detailsTabUnderline"
+                    className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#FF5A1F]"
+                  />
+                )}
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* 1. SUMMARY TAB */}
-          <TabsContent value="summary" className="space-y-6 pt-3 font-mono">
+          <TabsContent value="summary" className="space-y-6 pt-3 font-sans">
             {/* Compute Section */}
             <div className="space-y-1.5">
-              <div className="text-xs uppercase text-[#888882] tracking-wider font-semibold">
-                Compute Units (CU)
+              <div className="text-xs text-[#A1A19A] font-medium">
+                Compute (CU)
               </div>
               <div className="flex justify-between text-xs text-[#888882] mt-2">
-                <span>Reserved by default</span>
-                <span className="text-[#EDEDEC] tabular-nums">{beforeCu.toLocaleString()} CU</span>
+                <span>Default</span>
+                <span className="font-mono text-[#EDEDEC] tabular-nums">{beforeCu.toLocaleString()} CU</span>
               </div>
               <DotBar filledCount={DOT_COUNT} variant="baseline" />
 
               <div className="flex justify-between text-xs text-[#888882] mt-2">
-                <span className="text-[#D8F5C8]">Right-sized (1.10× probe)</span>
-                <span className="text-[#D8F5C8] tabular-nums font-semibold">
+                <span className="text-[#D8F5C8]">This transaction</span>
+                <span className="font-mono text-[#D8F5C8] tabular-nums font-semibold">
                   {afterCu.toLocaleString()} CU (-{Math.round((1 - afterCu / beforeCu) * 100)}%)
                 </span>
               </div>
@@ -273,18 +275,18 @@ export function DetailsSheet({
 
             {/* Loaded Data Section */}
             <div className="space-y-1.5 border-t border-[#232320] pt-4">
-              <div className="text-xs uppercase text-[#888882] tracking-wider font-semibold">
-                SIMD-0186 Loaded Account Data
+              <div className="text-xs text-[#A1A19A] font-medium">
+                Loaded data (SIMD-0186)
               </div>
               <div className="flex justify-between text-xs text-[#888882] mt-2">
-                <span>Default limit</span>
-                <span className="text-[#EDEDEC] tabular-nums">64.0 MiB (16,384 CU cost)</span>
+                <span>Default</span>
+                <span className="font-mono text-[#EDEDEC] tabular-nums">64.0 MiB (16,384 CU cost)</span>
               </div>
               <DotBar filledCount={DOT_COUNT} variant="baseline" />
 
               <div className="flex justify-between text-xs text-[#888882] mt-2">
-                <span className="text-[#D8F5C8]">Right-sized size limit</span>
-                <span className="text-[#D8F5C8] tabular-nums font-semibold">
+                <span className="text-[#D8F5C8]">This transaction</span>
+                <span className="font-mono text-[#D8F5C8] tabular-nums font-semibold">
                   {(afterDataBytes / 1024).toFixed(1)} KiB ({Math.ceil(afterDataBytes / 32768) * 8} CU cost)
                 </span>
               </div>
@@ -293,23 +295,25 @@ export function DetailsSheet({
 
             {/* Fee Section */}
             <div className="space-y-1 border-t border-[#232320] pt-4">
-              <div className="text-xs uppercase text-[#888882] tracking-wider font-semibold">Network Fee</div>
-              <div className="text-2xl font-bold text-[#EDEDEC] tracking-tight tabular-nums">
+              <div className="text-xs text-[#A1A19A] font-medium">Fee</div>
+              <div className="text-2xl font-mono font-bold text-[#EDEDEC] tracking-tight tabular-nums">
                 {feeLamports.toLocaleString()} lamports
               </div>
               <div className="text-xs text-[#888882]">
-                {optMode === "fastest" ? "Optimized: Same fee budget, 5.7× priority boost" : "Optimized: Minimum priority fee (~82% saved)"}
+                {optMode === "fastest"
+                  ? "Same fee budget, higher scheduler priority"
+                  : "Lowest priority fee for this compute limit"}
               </div>
             </div>
 
             {/* Priority Section */}
             <div className="space-y-1 border-t border-[#232320] pt-4">
-              <div className="text-xs uppercase text-[#888882] tracking-wider font-semibold">
-                Agave Priority Score
+              <div className="text-xs text-[#A1A19A] font-medium">
+                Priority (Agave score)
               </div>
               <div className="text-xl font-mono text-[#EDEDEC] flex items-center gap-3">
                 <span className="text-[#888882] tabular-nums">{beforePriority.toLocaleString()}</span>
-                <span className="text-[#888882]">→</span>
+                <span className="text-[#888882] font-sans">→</span>
                 <span className="font-doto text-3xl font-bold tracking-tight text-[#D8F5C8] tabular-nums">
                   {afterPriority.toLocaleString()}
                 </span>
@@ -317,14 +321,14 @@ export function DetailsSheet({
             </div>
 
             {/* Collapsible Agave Formula & Byte Sizes */}
-            <div className="border-t border-[#232320] pt-4 text-[11px] text-[#888882]">
+            <div className="border-t border-[#232320] pt-4 text-xs text-[#888882]">
               <button
                 type="button"
                 onClick={() => setShowFormulaBreakdown(!showFormulaBreakdown)}
-                className="w-full flex items-center justify-between text-left py-1 text-[#888882] hover:text-[#EDEDEC] transition-colors cursor-pointer select-none"
+                className="w-full flex items-center justify-between text-left py-1 text-[#888882] hover:text-[#EDEDEC] transition-colors cursor-pointer select-none font-sans"
               >
-                <span className="uppercase tracking-wider font-semibold">
-                  Agave Scheduler Cost Formula
+                <span className="font-medium">
+                  Scheduler cost formula
                 </span>
                 {showFormulaBreakdown ? (
                   <ChevronUp className="w-3.5 h-3.5" />
@@ -342,19 +346,19 @@ export function DetailsSheet({
                     transition={{ duration: 0.2 }}
                     className="overflow-hidden pt-2 space-y-3"
                   >
-                    <div className="p-2.5 bg-[#141413] border border-[#232320] rounded-[2px] text-[#EDEDEC] space-y-1 text-[10px]">
+                    <div className="p-2.5 bg-[#141413] border border-[#232320] rounded-[2px] text-[#EDEDEC] space-y-1 text-[10px] font-mono">
                       <div><code>Priority = ⌊(reward × 10⁶) / (totalCost + 1)⌋</code></div>
                       <div className="text-[#888882]"><code>totalCost = sigs×720 + writeLocks×300 + ⌈ixBytes/32⌉ + cuLimit + pages×8</code></div>
                     </div>
 
                     {report?.loadedDataItems && report.loadedDataItems.length > 0 && (
                       <div className="space-y-1">
-                        <div className="text-[10px] uppercase text-[#A1A19A]">Per-Account Bytes</div>
+                        <div className="text-[11px] font-sans text-[#A1A19A]">Per-account bytes</div>
                         <div className="space-y-1">
                           {report.loadedDataItems.slice(0, 6).map((item) => (
                             <div key={item.address} className="flex justify-between text-[11px]">
-                              <span className="truncate max-w-[220px] text-[#A1A19A]">{item.label}</span>
-                              <span className="tabular-nums text-[#EDEDEC]">{item.totalBytes} B</span>
+                              <span className="truncate max-w-[220px] font-sans text-[#A1A19A]">{item.label}</span>
+                              <span className="font-mono tabular-nums text-[#EDEDEC]">{item.totalBytes} B</span>
                             </div>
                           ))}
                         </div>
@@ -367,7 +371,7 @@ export function DetailsSheet({
           </TabsContent>
 
           {/* 2. ACCOUNTS TAB */}
-          <TabsContent value="accounts" className="space-y-0 pt-2 font-mono divide-y divide-[#232320]">
+          <TabsContent value="accounts" className="space-y-0 pt-2 font-sans divide-y divide-[#232320]">
             {zombies.length === 0 ? (
               <div className="py-8 text-center text-xs text-[#73736E]">
                 No candidate empty accounts found in wallet
@@ -404,7 +408,11 @@ export function DetailsSheet({
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="font-semibold group-hover:text-[#FF5A1F] transition-colors">
-                          {symbol} · {formatShortAddress(z.address)}
+                          {symbol}{" "}
+                          <span className="font-mono font-normal text-[#A1A19A]">
+                            · {formatShortAddress(z.address)}
+                            {isPreview ? " (sample)" : ""}
+                          </span>
                         </span>
                         {isExpanded ? (
                           <ChevronUp className="w-3 h-3 text-[#888882]" />
@@ -412,13 +420,13 @@ export function DetailsSheet({
                           <ChevronDown className="w-3 h-3 text-[#888882]" />
                         )}
                       </div>
-                      <span className={`tabular-nums font-semibold shrink-0 ${z.selectedForClose ? "text-[#D8F5C8]" : "text-[#73736E]"}`}>
+                      <span className={`font-mono tabular-nums font-semibold shrink-0 ${z.selectedForClose ? "text-[#D8F5C8]" : "text-[#73736E]"}`}>
                         {z.selectedForClose ? `+${rentSol.toFixed(6)} SOL` : "Kept open"}
                       </span>
                     </div>
 
-                    <div className="text-[11px] text-[#888882] mt-0.5">
-                      {kindName} · {repeatPct} repeat chance · {z.selectedForClose ? "Closing for refund" : "Keeping"}
+                    <div className="text-[11px] text-[#888882] mt-0.5 font-sans">
+                      {kindName} · <span className="font-mono tabular-nums">{repeatPct}</span> repeat chance · {z.selectedForClose ? "Closing for refund" : "Keeping"}
                     </div>
 
                     {/* Expandable Account Details */}
@@ -429,59 +437,69 @@ export function DetailsSheet({
                           animate={{ opacity: 1, height: "auto" }}
                           exit={{ opacity: 0, height: 0 }}
                           transition={{ duration: 0.18 }}
-                          className="overflow-hidden mt-2 pt-2 border-t border-[#1C1C1A] text-[10px] space-y-1.5 text-[#A1A19A]"
+                          className="overflow-hidden mt-2 pt-2 border-t border-[#1C1C1A] text-[11px] space-y-1.5 text-[#A1A19A]"
                         >
                           <div className="flex items-center justify-between">
-                            <span>Mint Address:</span>
+                            <span>Mint address</span>
                             <div className="flex items-center gap-1">
-                              <span className="font-mono text-[#EDEDEC]">{formatShortAddress(z.mint)}</span>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCopy(z.mint, `mint-${z.address}`);
-                                }}
-                                className="p-0.5 hover:text-white transition-colors cursor-pointer"
-                                title="Copy Mint Address"
-                              >
-                                {copiedKey === `mint-${z.address}` ? (
-                                  <Check className="w-3 h-3 text-[#D8F5C8]" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                              </button>
+                              <span className="font-mono text-[#EDEDEC]">
+                                {formatShortAddress(z.mint)}
+                                {isPreview ? " (sample)" : ""}
+                              </span>
+                              {!isPreview && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCopy(z.mint, `mint-${z.address}`);
+                                  }}
+                                  className="p-0.5 hover:text-white transition-colors cursor-pointer"
+                                  title="Copy mint address"
+                                >
+                                  {copiedKey === `mint-${z.address}` ? (
+                                    <Check className="w-3 h-3 text-[#D8F5C8]" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                </button>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span>Account Address:</span>
+                            <span>Account address</span>
                             <div className="flex items-center gap-1">
-                              <span className="font-mono text-[#EDEDEC]">{formatShortAddress(z.address)}</span>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleCopy(z.address, `addr-${z.address}`);
-                                }}
-                                className="p-0.5 hover:text-white transition-colors cursor-pointer"
-                                title="Copy Account Address"
-                              >
-                                {copiedKey === `addr-${z.address}` ? (
-                                  <Check className="w-3 h-3 text-[#D8F5C8]" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                              </button>
+                              <span className="font-mono text-[#EDEDEC]">
+                                {formatShortAddress(z.address)}
+                                {isPreview ? " (sample)" : ""}
+                              </span>
+                              {!isPreview && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCopy(z.address, `addr-${z.address}`);
+                                  }}
+                                  className="p-0.5 hover:text-white transition-colors cursor-pointer"
+                                  title="Copy account address"
+                                >
+                                  {copiedKey === `addr-${z.address}` ? (
+                                    <Check className="w-3 h-3 text-[#D8F5C8]" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                </button>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span>Refund Rent:</span>
-                            <span className="text-[#D8F5C8] tabular-nums font-semibold">
+                            <span>Refund rent</span>
+                            <span className="font-mono text-[#D8F5C8] tabular-nums font-semibold">
                               {z.rentLamports.toLocaleString()} lamports ({rentSol.toFixed(6)} SOL)
                             </span>
                           </div>
                           {cls?.reason && (
-                            <div className="pt-1 text-[10px] text-[#73736E] italic">
-                              Recommendation: &quot;{cls.reason}&quot;
+                            <div className="pt-1 text-[11px] text-[#73736E]">
+                              Recommendation: {cls.reason}
                             </div>
                           )}
                         </motion.div>
@@ -491,22 +509,24 @@ export function DetailsSheet({
                 );
               })
             )}
-            <div className="pt-4 text-[10px] text-[#666660]">
-              Classified by TypeSafe Jev (choice + noul)
+            <div className="pt-4 text-[11px] text-[#666660] font-sans">
+              {zombies.some((z) => z.classification?.source === "jev")
+                ? "Classified by Jev"
+                : "Classified by rules (no AI key)"}
             </div>
           </TabsContent>
 
           {/* 3. LOGS TAB */}
-          <TabsContent value="logs" className="pt-2 font-mono">
+          <TabsContent value="logs" className="pt-2 font-sans">
             <div className="flex justify-between items-center mb-3">
-              <span className="text-[11px] text-[#888882] uppercase tracking-wider">
-                Pre-Flight Sim Logs
+              <span className="text-xs text-[#A1A19A] font-medium">
+                {isPreview ? "Sample simulation logs (preview)" : "Simulation logs"}
               </span>
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-[2px] ${report?.ok !== false ? "bg-[#D8F5C8]/10 text-[#D8F5C8] border border-[#D8F5C8]/30" : "bg-[#FF5A1F]/10 text-[#FF5A1F] border border-[#FF5A1F]/30"}`}>
-                {report?.ok !== false ? "✓ Passed" : "✕ Failed"}
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-[2px] ${report?.ok !== false ? "bg-[#D8F5C8]/10 text-[#D8F5C8] border border-[#D8F5C8]/30" : "bg-[#FF5A1F]/10 text-[#FF5A1F] border border-[#FF5A1F]/30"}`}>
+                {report?.ok !== false ? "Passed" : "Failed"}
               </span>
             </div>
-            <div className="space-y-1.5 text-xs text-[#EDEDEC] max-h-[65vh] overflow-y-auto bg-[#121210] p-3 rounded-[2px] border border-[#232320]">
+            <div className="space-y-1.5 text-xs text-[#EDEDEC] max-h-[65vh] overflow-y-auto bg-[#121210] p-3 rounded-[2px] border border-[#232320] font-mono">
               {logs.map((log, idx) => {
                 const lineNum = String(idx + 1).padStart(2, "0");
                 return (
@@ -529,13 +549,13 @@ export function DetailsSheet({
           </TabsContent>
 
           {/* 4. ACTIVITY TAB */}
-          <TabsContent value="activity" className="pt-2 font-mono">
+          <TabsContent value="activity" className="pt-2 font-sans">
             <div className="flex items-center justify-between pb-3 border-b border-[#232320]">
               <div className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-wider text-[#EDEDEC] font-semibold">
-                  Recent Activity
+                <span className="text-xs text-[#EDEDEC] font-medium">
+                  Recent activity
                 </span>
-                <span className="text-[10px] text-[#888882] bg-[#161614] border border-[#232320] px-1.5 py-0.2 rounded-[2px] tabular-nums">
+                <span className="text-[10px] font-mono text-[#888882] bg-[#161614] border border-[#232320] px-1.5 py-0.2 rounded-[2px] tabular-nums">
                   {activityHistory.length} total
                 </span>
               </div>
@@ -543,7 +563,7 @@ export function DetailsSheet({
                 <button
                   type="button"
                   onClick={onClearActivity}
-                  className="text-[10px] text-[#888882] hover:text-[#FF5A1F] transition-colors flex items-center gap-1 cursor-pointer"
+                  className="text-[11px] text-[#888882] hover:text-[#FF5A1F] transition-colors flex items-center gap-1 cursor-pointer"
                   title="Clear history"
                 >
                   <Trash2 className="w-3 h-3" />
@@ -555,10 +575,7 @@ export function DetailsSheet({
             <div className="mt-3 space-y-3 max-h-[65vh] overflow-y-auto pr-1">
               {activityHistory.length === 0 ? (
                 <div className="py-12 flex flex-col items-center justify-center text-center gap-2 text-[#73736E]">
-                  <div className="w-8 h-8 rounded-full border border-[#232320] flex items-center justify-center text-[#888882]">
-                    ⏱
-                  </div>
-                  <div className="text-xs font-semibold text-[#A1A19A]">No activity recorded yet</div>
+                  <div className="text-xs font-medium text-[#A1A19A]">No activity recorded yet</div>
                   <div className="text-[11px] max-w-[240px] leading-relaxed">
                     When you send a payment and reclaim rent on Devnet, confirmed on-chain receipts will appear here.
                   </div>
@@ -578,7 +595,7 @@ export function DetailsSheet({
                     >
                       {/* Top Row: Status + Timestamp */}
                       <div className="flex items-center justify-between text-[11px]">
-                        <div className="flex items-center gap-1.5 font-semibold text-[#D8F5C8]">
+                        <div className="flex items-center gap-1.5 font-medium text-[#D8F5C8]">
                           <span className="w-1.5 h-1.5 rounded-full bg-[#D8F5C8] inline-block animate-pulse" />
                           <span>Confirmed on Devnet</span>
                         </div>
@@ -589,7 +606,7 @@ export function DetailsSheet({
 
                       {/* Middle Row: Net Delta SOL */}
                       <div className="flex items-baseline justify-between pt-1">
-                        <span className="text-xs text-[#A1A19A]">Net Balance Change</span>
+                        <span className="text-xs text-[#A1A19A]">Net balance change</span>
                         <span
                           className={`font-doto text-lg sm:text-xl font-bold tabular-nums ${
                             isPositive ? "text-[#D8F5C8]" : "text-[#EDEDEC]"
@@ -602,22 +619,24 @@ export function DetailsSheet({
                       {/* Breakdown Strip */}
                       <div className="pt-2 border-t border-[#1C1C1A] text-[11px] text-[#888882] space-y-1">
                         <div className="flex justify-between">
-                          <span>Sent to {formatShortAddress(item.recipient)}</span>
-                          <span className="text-[#EDEDEC] tabular-nums">-{transferSol.toFixed(6)} SOL</span>
+                          <span>
+                            Sent to <span className="font-mono text-[#A1A19A]">{formatShortAddress(item.recipient)}</span>
+                          </span>
+                          <span className="font-mono text-[#EDEDEC] tabular-nums">-{transferSol.toFixed(6)} SOL</span>
                         </div>
                         {item.reclaimedCount > 0 && (
                           <div className="flex justify-between">
                             <span>Reclaimed ({item.reclaimedCount} accounts)</span>
-                            <span className="text-[#D8F5C8] tabular-nums">+{refundSol.toFixed(6)} SOL</span>
+                            <span className="font-mono text-[#D8F5C8] tabular-nums">+{refundSol.toFixed(6)} SOL</span>
                           </div>
                         )}
                         <div className="flex justify-between">
-                          <span>Network fee ({item.optMode})</span>
-                          <span className="text-[#EDEDEC] tabular-nums">-{feeSol.toFixed(6)} SOL</span>
+                          <span>Network fee</span>
+                          <span className="font-mono text-[#EDEDEC] tabular-nums">-{feeSol.toFixed(6)} SOL</span>
                         </div>
                         {item.memo && (
-                          <div className="flex justify-between text-[10px] text-[#A1A19A] pt-0.5">
-                            <span>Memo:</span>
+                          <div className="flex justify-between text-[11px] text-[#A1A19A] pt-0.5">
+                            <span>Memo</span>
                             <span className="italic truncate max-w-[180px]">&quot;{item.memo}&quot;</span>
                           </div>
                         )}
@@ -639,7 +658,7 @@ export function DetailsSheet({
                         <button
                           type="button"
                           onClick={() => handleCopy(item.signature, item.id)}
-                          className="text-[10px] text-[#888882] hover:text-white transition-colors cursor-pointer flex items-center gap-1"
+                          className="text-[11px] text-[#888882] hover:text-white transition-colors cursor-pointer flex items-center gap-1"
                         >
                           {copiedKey === item.id ? (
                             <>
@@ -649,7 +668,7 @@ export function DetailsSheet({
                           ) : (
                             <>
                               <Copy className="w-3 h-3" />
-                              <span>Copy Sig</span>
+                              <span>Copy signature</span>
                             </>
                           )}
                         </button>

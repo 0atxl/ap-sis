@@ -30,7 +30,8 @@ const BURNER_KEYPAIR_STORAGE_KEY = "ap-sis:burner-secret-key";
  * browser reloads and re-connections.
  */
 class PersistentBurnerWalletAdapter extends UnsafeBurnerWalletAdapter {
-  override readonly name = UnsafeBurnerWalletName;
+  override readonly name =
+    "Burner wallet (devnet test only)" as typeof UnsafeBurnerWalletName;
 
   override async connect(): Promise<void> {
     if (typeof window !== "undefined") {

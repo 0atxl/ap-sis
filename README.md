@@ -1,100 +1,131 @@
-# `ap-sis` — *Pay and get paid back.*
+# apsis
 
-> **Solana Pre-Flight Transaction Compiler & Negative-Gas Payment Engine powered by TypeSafe `Jev` (`jev-1.14.0`)**  
-> Built for the **MLH Solana Hackathon**.
+Pay someone on Solana and recover the SOL locked in your empty token accounts, in the same transaction. Your balance can go up after you pay.
 
----
+Built for the MLH Solana Hackathon (AI track, Best Use of Solana).
 
-## 1. What is `ap-sis`?
+![apsis main screen](public/screenshots/main.png)
 
-Every time you interact with tokens, airdrops, or DeFi on Solana, your wallet accumulates **165-byte SPL Token accounts** that each lock **`0.00203928 SOL` (`2,039,280` lamports)** in rent-exempt deposit. Even after a token balance hits `0`, that deposit stays locked forever unless an explicit `CloseAccount` instruction is executed.
+| Details drawer | Mobile |
+| :--- | :--- |
+| ![Details drawer](public/screenshots/details.png) | ![Mobile layout](public/screenshots/mobile.png) |
 
-Meanwhile, a standard Solana payment + invoice memo uses only **~284–308 bytes** of Solana's **1,232-byte UDP packet limit**—leaving over **900 bytes of paid-for packet space unused**, while defaulting to **203,000 CU** (`SIMD-0170`) and **64 MiB** of loaded-account data (`SIMD-0186` = `16,384 CU` of scheduler cost).
+<!-- Add main.png, details.png and mobile.png (390px wide) to public/screenshots/ before publishing. -->
 
-**`ap-sis` is a 3-stage pre-flight transaction compiler:**
-1. **Stage A — Pre-Flight Simulation Probe:** Simulates the payment with a `1,400,000 CU` ceiling (`sigVerify: false`, `replaceRecentBlockhash: true`) and blocks signing if any runtime error occurs.
-2. **Stage B — Budget Right-Sizing (`SIMD-0170` & `SIMD-0186` + Honest Cost-Model Optimizer):**
-   - Right-sizes `SetComputeUnitLimit` to `ceil(unitsConsumed × 1.10)`.
-   - Dynamically computes `SetLoadedAccountsDataSizeLimit` from real on-chain account sizes (`data.length + 64` bytes per account + `BPFLoaderUpgradeab1e11111111111111111111111` `programdata` sizes), rounded up to `32 KiB` pages (`8 CU` per page instead of `16,384 CU`).
-   - Offers two mathematically honest optimization modes based on the Agave scheduler priority formula:
-     - **Cheapest Mode:** Keeps the CU price steady; priority fee drops proportionally (`~82–95%`) with the right-sized CU limit.
-     - **Fastest Mode:** Keeps the original lamport fee budget and raises `SetComputeUnitPrice`, boosting Agave scheduler priority by **5×–8×** for the same spend.
-3. **Stage C — Spare-Byte `CloseAccount` Packing (Guided by TypeSafe `Jev`):**
-   - Scans the connected wallet for 0-balance SPL Token & Token-2022 accounts.
-   - Uses **TypeSafe's `Jev` (`jev-1.14.0`)** decision model via `@typesafe-ai/sdk` (`choice` + `noul`) to classify which empty accounts are safe to close (`spam_airdrop` / `dead_or_test_token` with repeat-receipt probability `< 0.30`) vs. recurring payment tokens (`stablecoin` / `major_asset`).
-   - Packs up to 8 `CloseAccount` instructions into the transaction's unused bytes (`≤ 1,232 B`) and re-simulates to verify.
-
-**The Result:** When you send a `0.001 SOL` invoice payment while closing 3 zombie accounts (`+0.00611784 SOL` reclaimed rent), your wallet balance goes **UP by `+0.005112 SOL`** in the same atomic transaction.
-
-> **Transparency by design:** Reclaimed SOL is **your own locked token-account deposit coming back**, not yield. And if `TYPESAFE_API_KEY` is offline or unreachable, `ap-sis` switches visibly to **Heuristic mode** without ever faking AI confidence scores.
+[Demo video](TODO-add-link) · [Live app](TODO-add-link-if-deployed)
 
 ---
 
-## 2. Architecture
+## The problem
 
-```mermaid
-flowchart TD
-    UI["Next.js Studio UI<br/>PaymentForm, TransactionGrid, AccountLedger, NetNumber, DetailsSheet"] --> C["src/lib/compiler.ts"]
-    C --> A["Stage A: Pre-Flight Simulation (1,400,000 CU probe)"]
-    A --> B["Stage B: CU Limit + Dynamic SIMD-0186 Data Limit + Cheapest/Fastest Priority"]
-    B --> P["Stage C: Pack CloseAccount into Spare Packet Bytes (<= 1,232 B)"]
-    Z["src/lib/zombies.ts (0-balance SPL & Token-2022 Scanner)"] --> J["/api/ai/jev (TypeSafe Jev 1.14.0 Server Route)"]
-    J --> P
-    P --> R["Final Verification Re-Simulation + Telemetry Report"]
-    R --> UI
-    UI --> W["Wallet Sign & Broadcast (Solana Devnet)"]
-    W --> S["Solscan Devnet Receipt + Real On-Chain Balance Diff"]
+Every token a Solana wallet has ever held, including airdrops, test tokens and dead coins, leaves behind a 165-byte token account. Each one locks a refundable deposit of 0.00203928 SOL (2,039,280 lamports). When the token balance reaches zero the account stays open, and the deposit stays locked until someone sends a `CloseAccount` instruction.
+
+TODO: replace this line with your measured number, for example "We scanned N mainnet wallets and found X empty token accounts holding Y SOL." Only use a figure you measured yourself.
+
+Closing every empty account blindly is not safe either. An empty USDC account might be about to receive a payroll payment, and closing it makes the next sender pay to recreate it. Deciding which empty accounts are junk and which are expected to be used again is the hard part.
+
+## What apsis does
+
+You enter a payment: recipient, amount and a memo. Before you sign, apsis does three things.
+
+1. **Check.** It simulates the payment on Devnet. If the simulation fails, signing is disabled, so you cannot sign a transaction that would fail.
+2. **Trim.** It reads what the simulation actually used and sets the compute limit to that amount plus a 10% margin, instead of the 203,000 default. It also sets the loaded-accounts data limit from the real account sizes instead of the 64 MiB default. This lowers the fee for the same priority, or raises the priority for the same fee, depending on the mode you pick.
+3. **Sweep.** It scans your wallet for token accounts with a zero balance (Token and Token-2022), asks TypeSafe's Jev model which are safe to close, and packs `CloseAccount` instructions for those into the unused space in the same transaction (up to 8, within Solana's 1,232-byte limit). It then simulates the final transaction again before you sign.
+
+Example: send 0.001 SOL and close three empty accounts. The network fee is a few thousand lamports and the three accounts return about 0.0061 SOL, so your balance ends up about 0.005 SOL higher than before. You signed once.
+
+The SOL you recover is your own deposit coming back. It is not yield.
+
+## How the AI is used, and how it is limited
+
+For each empty account, Jev (pinned to `jev-1.14.0`, through `@typesafe-ai/sdk`) answers two questions:
+
+- What kind of token is this? One of `spam_airdrop`, `dead_or_test_token`, `stablecoin`, `major_asset` or `unknown`.
+- How likely is it that the owner receives this token again soon? A probability from 0 to 1.
+
+The model only proposes. Plain code decides. An account is selected for closing only if its kind is `spam_airdrop` or `dead_or_test_token` and the repeat-receipt probability is below 0.30. USDC and other known stablecoins are never selected automatically. You can override any account with its checkbox, and the final transaction is simulated again before signing.
+
+If `TYPESAFE_API_KEY` is missing or the request fails, apsis switches to a rules-based fallback and labels the result as such. The fallback never shows made-up confidence scores.
+
+## Try it
+
+### Option A: preview without a wallet
+
+Open the app. It loads four sample accounts (three disposable test accounts and one Devnet USDC account) and sends them through the same classification route as real accounts, so you see the full flow: the transaction grid, the ledger, the net result and the Details drawer.
+
+The preview does not send anything on-chain. The base payment is simulated on Devnet with a stand-in account as the payer. Because the sample accounts do not exist on-chain, the account closes and the log lines shown for them in preview are illustrative. Connect a wallet to see real simulation results for real accounts.
+
+### Option B: real transactions on Devnet
+
+1. Connect Phantom, Solflare or Coinbase Wallet set to Devnet. If you have no wallet, choose the burner wallet. It is a throwaway Devnet keypair stored in your browser's local storage. Never put real funds in it.
+2. Get Devnet SOL from the Devnet menu in the top bar, or from https://faucet.solana.com.
+3. Create three empty test token accounts with "+ Seed 3 test empty accounts". It creates one reusable test mint and three empty accounts, locking about 0.0061 SOL.
+4. Enter a recipient, an amount and a memo, then press **Sign and send**.
+5. Open the transaction on Solscan from the confirmation. Your wallet's Devnet balance went up.
+
+TODO: after your first recorded real run, add one line here with the transaction link and the before and after balances.
+
+## Run locally
+
+Requires Node.js 20 or newer.
+
+```bash
+npm install
+cp .env.example .env.local
 ```
 
----
+Open `.env.local` and set `TYPESAFE_API_KEY`. It is the only variable the app reads, and it is optional: without it the app uses the rules-based fallback. The Devnet RPC endpoint is changed in the app, from the Devnet menu.
 
-## 3. Exact Protocol Math
+```bash
+npm run dev
+```
 
-### Agave Scheduler Cost & Priority Formula
-$$
-\text{totalCost} = (N_{\text{sig}} \times 720) + (N_{\text{writeLocks}} \times 300) + \left\lceil \frac{\text{ixDataBytes}}{32} \right\rceil + \text{cuLimit} + \left(\left\lceil \frac{\text{dataLimitBytes}}{32{,}768} \right\rceil \times 8\right)
-$$
+Open http://localhost:3000. The repo's `.npmrc` sets `legacy-peer-deps=true`, so a plain `npm install` is enough.
 
-$$
-\text{reward} = \left\lceil \frac{\text{cuPrice}_{\mu\text{L}} \times \text{cuLimit}}{10^6} \right\rceil + \left\lfloor \frac{\text{baseFee}}{2} \right\rfloor, \qquad \text{Priority} = \left\lfloor \frac{\text{reward} \times 10^6}{\text{totalCost} + 1} \right\rfloor
-$$
+If you deploy the app, set `TYPESAFE_API_KEY` in your host's environment settings, otherwise visitors only see the fallback.
 
-### TypeSafe `Jev` (`@typesafe-ai/sdk`) Decision Schema
-- **Call 1 — Batched Zombie Account Classifier:**
-  - `acct_${i}_kind`: `choice(...)` over `{ spam_airdrop, dead_or_test_token, stablecoin, major_asset, unknown }`
-  - `acct_${i}_receive_again`: `noul(...)` probability (`0..1`) that the wallet owner will receive the token again soon.
-  - **Deterministic Code Policy:** Auto-select for closure if and only if `token_kind ∈ {spam_airdrop, dead_or_test_token}` **and** `will_receive_again < 0.30` (and not on the stablecoin allow-list). Users can override any account via checkboxes.
-- **Call 2 — Intent Router & Pre-Sign Advisory Check:**
-  - `intent`: `choice(...)` over `{ pay_with_memo, split_payment, cleanup_only, unsupported }`
-  - `is_safe_to_sign`: `noul(...)` evaluating the simulation logs and balance-diff summary (advisory badge; never overrides a failed simulation).
+## Modes
 
----
+The **Cheapest / Fastest** switch changes how the savings are spent.
 
-## 4. Quick Start (Local Development)
+- **Cheapest** keeps the compute price the same, so the priority fee drops along with the smaller compute limit.
+- **Fastest** keeps the original fee and raises the compute price, which raises the transaction's scheduler priority for the same cost.
 
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-2. **Configure `.env.local`:**
-   ```bash
-   cp .env.example .env.local
-   # Fill in your TypeSafe API key in .env.local
-   ```
-   *(If omitted, the app runs in explicit **Heuristic mode**.)*
-3. **Start the development server:**
-   ```bash
-   npm run dev
-   ```
-   Open `http://localhost:3000`.
+The priority comparison is against an unoptimized transaction with the default compute limit and a reference price of 10,000 micro-lamports per compute unit. It is a comparison with that reference, not a claim about every real-world transaction.
 
-### Testing on Solana Devnet
-- **No Wallet Connected (Instant Preview):**
-  - On load, `ap-sis` runs a live Stage A → B → C pre-flight simulation against Solana Devnet and displays real `SIMD-0186` account data sizes and Agave priority telemetry.
-  - Candidate accounts are classified live via `/api/ai/jev`.
-- **With a Connected Devnet Wallet (Phantom / Solflare / Burner on Devnet):**
-  1. Connect your wallet (switched to **Solana Devnet** in wallet settings).
-  2. Click **`+1.0 Devnet SOL`** in the `[Devnet]` network popover (or use `https://faucet.solana.com` if the public RPC rate-limits).
-  3. Click **`+ Seed 3 test empty accounts`** — creates one reusable Devnet test mint (cached in `localStorage` so mint rent is never wasted twice) and 3 empty 165-byte keypair token accounts (`0.00611784 SOL` total reclaimable deposit).
-  4. Click **`Sign, send & reclaim`** on the `0.001 SOL` invoice payment preset.
-  5. Inspect the **Confirmed Solscan Devnet Receipt** showing your real wallet SOL balance went **up by `+0.00511 SOL`** when you paid!
+## How it works
+
+| Step | File | What it does |
+| :--- | :--- | :--- |
+| Check, Trim, Pack | `src/lib/compiler.ts` | Simulates, sets the compute and loaded-data limits, packs close instructions, re-simulates |
+| Scan | `src/lib/zombies.ts` | Finds zero-balance Token and Token-2022 accounts |
+| Classify | `src/lib/jev.ts`, `src/app/api/ai/jev/route.ts` | Calls Jev from the server, applies the close policy, provides the rules-based fallback |
+| Seed | `src/lib/seed.ts` | Creates Devnet test accounts for demos |
+| Interface | `src/app/page.tsx`, `src/components/` | Transaction grid, ledger, net result, Details drawer |
+
+The scheduler priority shown in the Details drawer uses the Agave cost model:
+
+```
+totalCost = signatures × 720 + writeLocks × 300 + ceil(instructionDataBytes / 32)
+            + computeUnitLimit + ceil(loadedDataLimitBytes / 32768) × 8
+reward    = ceil(computeUnitPrice × computeUnitLimit / 1,000,000) + floor(baseFee / 2)
+priority  = floor(reward × 1,000,000 / (totalCost + 1))
+```
+
+The loaded-data limit uses the real size of each account in the transaction (account data plus 64 bytes of overhead), including the program data accounts of upgradeable programs, rounded up to 32 KiB pages.
+
+## Stack
+
+Next.js 16 (App Router), TypeScript, Tailwind CSS 4, `@solana/web3.js`, `@solana/spl-token`, Solana wallet adapter, `@typesafe-ai/sdk`, `motion`, Radix UI primitives, and the Doto typeface for the dot-matrix numerals.
+
+## Limits to know about
+
+- Devnet only. Mainnet has not been tested.
+- One recipient per payment.
+- In preview mode the closes and log lines are illustrative. Real results need a connected wallet.
+- Closing an account is permanent for that account. If you are expecting a token again, keep its checkbox off.
+- The burner wallet keeps its secret key in browser local storage. It is for Devnet testing only.
+
+## Team
+
+TODO: add names and links.

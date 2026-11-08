@@ -5,12 +5,6 @@ export type TokenKind =
   | "major_asset"
   | "unknown";
 
-export type IntentKind =
-  | "pay_with_memo"
-  | "split_payment"
-  | "cleanup_only"
-  | "unsupported";
-
 export interface ZombieCandidateInput {
   address: string;
   mint: string;
@@ -42,48 +36,12 @@ export interface ZombieClassification {
   source: "jev" | "heuristic";
 }
 
-export interface SimulationSafetySummary {
-  ok: boolean;
-  unitsConsumed: number;
-  logsTail: string[];
-  transferLamports: number;
-  feeLamports: number;
-  reclaimedLamports: number;
-  netLamports: number;
-  closesCount: number;
-  recipient: string;
-}
-
-export interface IntentAndSafetyResult {
-  intent: IntentKind;
-  intentConfidence: number | null;
-  intentProbabilities: Record<IntentKind, number> | null;
-  /** Advisory noul probability (0..1) on simulation logs + balance diff, or null in Heuristic mode. */
-  safeToSignProbability: number | null;
-  /** Advisory boolean; never true if simulation failed. */
-  isSafeAdvisory: boolean;
-  advisoryNote: string;
-  source: "jev" | "heuristic";
-}
-
 export interface JevApiResponse {
   mode: "jev" | "heuristic";
   model: string;
   latencyMs: number;
   fallbackReason?: string;
   classifications?: ZombieClassification[];
-  intentResult?: IntentAndSafetyResult;
-}
-
-export interface ParsedCommand {
-  intentHint: IntentKind;
-  amountSol: number;
-  lamports: number;
-  recipient: string;
-  secondaryRecipient?: string;
-  memo: string;
-  parseValid: boolean;
-  validationError?: string;
 }
 
 /** Pinned Jev model ID verified against client.models.list() / systemOne */
@@ -107,9 +65,9 @@ export const KNOWN_MAJOR_MINTS = new Set<string>([
 ]);
 
 /**
- * Deterministic policy gate over Jev's structured outputs:
- * Close only if `token_kind` is in `{spam_airdrop, dead_or_test_token}` AND `will_receive_again < 0.3`.
- */
+  * Deterministic policy gate over Jev's structured outputs:
+  * Close only if `token_kind` is in `{spam_airdrop, dead_or_test_token}` AND `will_receive_again < 0.3`.
+  */
 export function evaluateClosePolicy(
   tokenKind: TokenKind,
   willReceiveAgain: number
@@ -135,9 +93,9 @@ export function evaluateClosePolicy(
 }
 
 /**
- * Honest rules-based Heuristic fallback (used when offline, missing API key, or timeout).
- * Never emits synthetic confidence numbers pretending to be Jev.
- */
+  * Honest rules-based Heuristic fallback (used when offline, missing API key, or timeout).
+  * Never emits synthetic confidence numbers pretending to be Jev.
+  */
 export function classifyZombiesHeuristic(
   candidates: ZombieCandidateInput[]
 ): ZombieClassification[] {
@@ -212,121 +170,12 @@ export function classifyZombiesHeuristic(
   });
 }
 
-export function routeAndCheckHeuristic(
-  commandText: string,
-  simulationSummary?: SimulationSafetySummary
-): IntentAndSafetyResult {
-  const parsed = parsePaymentCommand(commandText);
-  const simOk = simulationSummary ? simulationSummary.ok : true;
-
-  return {
-    intent: parsed.intentHint,
-    intentConfidence: null,
-    intentProbabilities: null,
-    safeToSignProbability: null,
-    isSafeAdvisory: simOk && parsed.parseValid,
-    advisoryNote: !simOk
-      ? "Simulation reported an error — do not sign."
-      : "Heuristic check: simulation succeeded and balance delta matches parameters.",
-    source: "heuristic",
-  };
-}
-
 /**
- * Deterministic extractor for natural-language payment commands.
- * Example inputs:
- * - "Send 0.001 SOL to 7xKX... memo 'Invoice #42'"
- * - "Clean up my empty zombie accounts only"
- * - "Split 0.002 SOL between 7xKX... and 9aBc... memo 'Team lunch'"
- */
-export function parsePaymentCommand(
-  input: string,
-  defaultRecipient?: string
-): ParsedCommand {
-  const raw = input.trim();
-  const lower = raw.toLowerCase();
-
-  // Detect cleanup-only intent
-  const isCleanupOnly =
-    /^(clean\s*up|reclaim|sweep|close\s+(all\s+)?zombie)/i.test(raw) ||
-    (lower.includes("clean") && !/\b\d+(\.\d+)?\s*sol\b/i.test(raw));
-
-  // Extract memo in quotes or after `memo`
-  let memo = "ap-sis #42";
-  const quotedMemo =
-    raw.match(/memo\s*[:=]?\s*["'“”‘’]([^"'“”‘’]+)["'“”‘’]/i) ||
-    raw.match(/["'“”‘’]([^"'“”‘’]{1,120})["'“”‘’]/);
-  if (quotedMemo?.[1]) {
-    memo = quotedMemo[1].trim();
-  } else {
-    const trailingMemo = raw.match(/\bmemo\s+(.+)$/i);
-    if (trailingMemo?.[1]) {
-      memo = trailingMemo[1].trim();
-    }
-  }
-
-  // Extract base58 Solana addresses (32-44 chars)
-  const textWithoutMemo = quotedMemo ? raw.replace(quotedMemo[0], " ") : raw;
-  const pubkeyMatches =
-    textWithoutMemo.match(/\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g) || [];
-
-  // Extract SOL amount
-  const amountMatch =
-    raw.match(/(\d+(?:\.\d+)?)\s*sol\b/i) ||
-    raw.match(/\bsend\s+(\d+(?:\.\d+)?)\b/i) ||
-    raw.match(/\bpay\s+(\d+(?:\.\d+)?)\b/i);
-
-  if (isCleanupOnly && !amountMatch) {
-    return {
-      intentHint: "cleanup_only",
-      amountSol: 0,
-      lamports: 0,
-      recipient: pubkeyMatches[0] || defaultRecipient || "",
-      memo: quotedMemo?.[1] ? memo : "ap-sis rent sweep",
-      parseValid: true,
-    };
-  }
-
-  const amountSol = amountMatch ? Number.parseFloat(amountMatch[1]) : 0.001;
-  const lamports = Math.max(0, Math.round(amountSol * 1_000_000_000));
-  const recipient = pubkeyMatches[0] || defaultRecipient || "";
-  const secondaryRecipient = pubkeyMatches[1];
-
-  const isSplit =
-    /\bsplit\b/i.test(raw) && Boolean(recipient && secondaryRecipient);
-
-  if (!recipient) {
-    return {
-      intentHint: "pay_with_memo",
-      amountSol,
-      lamports,
-      recipient: "",
-      memo,
-      parseValid: false,
-      validationError:
-        "Include a valid Solana recipient address (or connect your wallet to use a self-transfer demo).",
-    };
-  }
-
-  return {
-    intentHint: isSplit ? "split_payment" : "pay_with_memo",
-    amountSol,
-    lamports,
-    recipient,
-    secondaryRecipient,
-    memo,
-    parseValid: Number.isFinite(amountSol) && amountSol >= 0,
-  };
-}
-
-/**
- * Client-side helper to invoke `/api/ai/jev`.
- * Falls back to local Heuristic mode if fetch fails on the client.
- */
+  * Client-side helper to invoke `/api/ai/jev`.
+  * Falls back to local Heuristic mode if fetch fails on the client.
+  */
 export async function requestJevEvaluation(payload: {
   candidates?: ZombieCandidateInput[];
-  commandText?: string;
-  simulationSummary?: SimulationSafetySummary;
 }): Promise<JevApiResponse> {
   const start = performance.now();
   try {
@@ -350,13 +199,6 @@ export async function requestJevEvaluation(payload: {
       classifications: payload.candidates
         ? classifyZombiesHeuristic(payload.candidates)
         : undefined,
-      intentResult:
-        payload.commandText !== undefined
-          ? routeAndCheckHeuristic(
-              payload.commandText,
-              payload.simulationSummary
-            )
-          : undefined,
     };
   }
 }

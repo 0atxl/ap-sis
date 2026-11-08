@@ -25,7 +25,7 @@ const doto = localFont({
 export const metadata: Metadata = {
   title: "apsis",
   description:
-    "Pre-flight Solana transaction studio with empty account rent reclamation.",
+    "Pay someone and recover the SOL locked in your empty token accounts.",
 };
 
 export default function RootLayout({

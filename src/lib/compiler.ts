@@ -45,7 +45,6 @@ export type OptimizationMode = "cheapest" | "fastest";
 export interface BuildPaymentParams {
   from: PublicKey;
   to?: PublicKey;
-  secondaryTo?: PublicKey;
   lamports: number;
   memo?: string;
 }
@@ -167,7 +166,6 @@ export function calculateDefaultCuLimit(
 export function buildPayment({
   from,
   to,
-  secondaryTo,
   lamports,
   memo,
 }: BuildPaymentParams): Transaction {
@@ -175,30 +173,13 @@ export function buildPayment({
   tx.feePayer = from;
 
   if (lamports > 0 && to) {
-    if (secondaryTo) {
-      const firstHalf = Math.floor(lamports / 2);
-      const secondHalf = lamports - firstHalf;
-      tx.add(
-        SystemProgram.transfer({
-          fromPubkey: from,
-          toPubkey: to,
-          lamports: firstHalf,
-        }),
-        SystemProgram.transfer({
-          fromPubkey: from,
-          toPubkey: secondaryTo,
-          lamports: secondHalf,
-        })
-      );
-    } else {
-      tx.add(
-        SystemProgram.transfer({
-          fromPubkey: from,
-          toPubkey: to,
-          lamports,
-        })
-      );
-    }
+    tx.add(
+      SystemProgram.transfer({
+        fromPubkey: from,
+        toPubkey: to,
+        lamports,
+      })
+    );
   }
 
   const trimmedMemo = memo?.trim();

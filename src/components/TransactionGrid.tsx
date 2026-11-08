@@ -83,9 +83,9 @@ export function TransactionGrid({
   return (
     <div className="w-full flex flex-col select-none my-3">
       {/* Top Header Labels */}
-      <div className="flex items-center justify-between pb-3 text-xs font-mono text-[#888882]">
+      <div className="flex items-center justify-between pb-3 text-xs font-sans text-[#888882]">
         <span>Your transaction</span>
-        <span>{clusters.length} closed</span>
+        <span className="tabular-nums">{clusters.length} closed</span>
       </div>
 
       {/* Grid Canvas / Divs */}
@@ -208,7 +208,7 @@ export function TransactionGrid({
           </AnimatePresence>
 
           {roomForMore > 0 && (
-            <div className="absolute right-0 text-right text-[#555550] text-[11px] font-mono">
+            <div className="absolute right-0 text-right text-[#555550] text-[11px] font-sans tabular-nums">
               room for {roomForMore} more
             </div>
           )}

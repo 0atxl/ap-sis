@@ -77,10 +77,10 @@ export function SignButton({
   };
 
   const modeHint =
-    optMode === "fastest" ? "Same fee budget · 5.7× priority" : "Lowest priority fee";
+    optMode === "fastest" ? "Same fee, confirms sooner" : "Lowest priority fee";
 
   return (
-    <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-[#232320]">
+    <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 pt-2.5 border-t border-[#232320] font-sans">
       {/* Left: Speed Toggle + Hint */}
       <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-3">
         <ToggleGroup
@@ -95,18 +95,18 @@ export function SignButton({
         >
           <ToggleGroupItem
             value="cheapest"
-            className="px-3 py-1.5 text-xs font-mono data-[state=on]:bg-[#262624] data-[state=on]:text-[#EDEDEC] text-[#888882] rounded-[2px]"
+            className="px-3 py-1.5 text-xs font-sans data-[state=on]:bg-[#262624] data-[state=on]:text-[#EDEDEC] text-[#888882] rounded-[2px]"
           >
             Cheapest
           </ToggleGroupItem>
           <ToggleGroupItem
             value="fastest"
-            className="px-3 py-1.5 text-xs font-mono data-[state=on]:bg-[#262624] data-[state=on]:text-[#EDEDEC] text-[#888882] rounded-[2px]"
+            className="px-3 py-1.5 text-xs font-sans data-[state=on]:bg-[#262624] data-[state=on]:text-[#EDEDEC] text-[#888882] rounded-[2px]"
           >
             Fastest
           </ToggleGroupItem>
         </ToggleGroup>
-        <span className="text-[11px] font-mono text-[#888882] tracking-tight">
+        <span className="text-xs font-sans text-[#888882]">
           {modeHint}
         </span>
       </div>
@@ -117,7 +117,7 @@ export function SignButton({
           type="button"
           onClick={handleClick}
           disabled={isDisabled}
-          className={`w-full py-2.5 sm:py-3 px-6 text-sm font-semibold tracking-wide rounded-[2px] transition-all font-mono select-none ${
+          className={`w-full py-2.5 px-6 text-sm font-medium rounded-[2px] transition-all font-sans select-none ${
             isDisabled
               ? "bg-[#262624] text-[#73736E] cursor-not-allowed"
               : "bg-[#FF5A1F] text-[#0C0C0B] hover:bg-[#ff713a] active:translate-y-[1px] cursor-pointer"
@@ -130,7 +130,7 @@ export function SignButton({
           <button
             type="button"
             onClick={onCancel}
-            className="text-xs font-mono text-[#888882] hover:text-[#EDEDEC] underline underline-offset-4 cursor-pointer whitespace-nowrap"
+            className="text-xs font-sans text-[#888882] hover:text-[#EDEDEC] underline underline-offset-4 cursor-pointer whitespace-nowrap"
           >
             Cancel
           </button>

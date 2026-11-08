@@ -407,7 +407,7 @@ export default function ApSisPage() {
             `Compute budget set: micro-lamports ${compiled.report.afterCuPriceMicroLamports}`,
             `Transfer ${amountSol.toFixed(6)} SOL to recipient`,
             `Memo "${memo || "Payment"}"`,
-            ...previewCloses.map((c) => `Close account ${shortenAddress(c.address)}`),
+            ...previewCloses.map((c) => `Sample close account ${shortenAddress(c.address)} (preview)`),
             `Compute used ${compiled.report.finalUnitsConsumed.toLocaleString()}`,
             `Accounts loaded ${compiled.report.computedRawDataBytes.toLocaleString()} B`,
             "Result success",
@@ -629,33 +629,21 @@ export default function ApSisPage() {
               seedBusy={seedBusy}
               connected={connected}
             />
-            <div className="flex items-center gap-2 pl-3 border-l border-[#232320]">
-              <button
-                type="button"
-                onClick={() => openDetailsWithTab("summary")}
-                className="text-xs font-mono text-[#888882] hover:text-[#EDEDEC] transition-colors cursor-pointer select-none"
-              >
-                [Details]
-              </button>
-              <button
-                type="button"
-                onClick={() => openDetailsWithTab("activity")}
-                className="text-xs font-mono text-[#888882] hover:text-[#EDEDEC] transition-colors flex items-center gap-1.5 cursor-pointer select-none"
-              >
-                <span>[Activity]</span>
-                {activityHistory.length > 0 && (
-                  <span className="text-[9px] bg-[#FF5A1F] text-[#0C0C0B] px-1 rounded-full font-bold">
-                    {activityHistory.length}
-                  </span>
-                )}
-              </button>
-            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => openDetailsWithTab("summary")}
+              className="text-xs font-sans text-[#A1A19A] hover:text-[#EDEDEC] transition-colors cursor-pointer select-none"
+            >
+              Details
+            </button>
             {connected && publicKey ? (
-              <div className="flex items-center gap-2 font-mono text-xs text-[#A1A19A]">
-                <ScrambleText text={shortenAddress(publicKey.toBase58())} />
+              <div className="flex items-center gap-2 text-xs text-[#A1A19A]">
+                <span className="font-mono">
+                  <ScrambleText text={shortenAddress(publicKey.toBase58())} />
+                </span>
                 <span className="w-2 h-2 rounded-full bg-[#D8F5C8] inline-block shadow-[0_0_6px_#D8F5C8]" />
                 <button
                   type="button"
@@ -664,17 +652,17 @@ export default function ApSisPage() {
                     setBalanceLamports(null);
                     setZombies(INITIAL_DEMO_ZOMBIES);
                   }}
-                  className="text-[10px] text-[#666660] hover:text-[#EDEDEC] transition-colors ml-1 cursor-pointer"
+                  className="font-sans text-xs text-[#666660] hover:text-[#EDEDEC] transition-colors ml-1 cursor-pointer"
                   title="Disconnect"
                 >
-                  [disconnect]
+                  Disconnect
                 </button>
               </div>
             ) : (
               <button
                 type="button"
                 onClick={() => setVisible(true)}
-                className="text-xs font-mono text-[#FF5A1F] hover:text-[#ff7843] transition-colors cursor-pointer"
+                className="text-xs font-sans font-medium text-[#FF5A1F] hover:text-[#ff7843] transition-colors cursor-pointer"
               >
                 Connect wallet
               </button>
@@ -709,14 +697,13 @@ export default function ApSisPage() {
         </div>
 
         {/* 4. SPLIT TWO COLUMNS: LEDGER & NET NUMBER */}
-        <div className="grid grid-cols-1 md:grid-cols-12 flex-1 items-start divide-y md:divide-y-0 md:divide-x divide-[#232320] py-6">
+        <div className="grid grid-cols-1 md:grid-cols-12 flex-1 items-start divide-y md:divide-y-0 md:divide-x divide-[#232320] pt-6 pb-24">
           {/* Left Column: Merged Account Ledger */}
           <div className="md:col-span-7 pb-6 md:pb-0 md:pr-8">
             <AccountLedger
               recipient={recipient}
               transferLamports={sendingLamports}
               feeLamports={feeLamports}
-              optMode={optMode}
               zombies={zombies}
               onToggle={toggleZombie}
               tokenMetaMap={tokenMetaMap}
@@ -772,6 +759,7 @@ export default function ApSisPage() {
         activeTab={detailsTab}
         onTabChange={setDetailsTab}
         onClearActivity={handleClearActivity}
+        isPreview={!connected}
       />
     </div>
   );

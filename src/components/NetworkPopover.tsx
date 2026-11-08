@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DEFAULT_DEVNET_RPC } from "@/components/SolanaProvider";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 
 interface NetworkPopoverProps {
   rpcUrl: string;
@@ -41,25 +41,29 @@ export function NetworkPopover({
   };
 
   return (
-    <Popover open={open} onOpenChange={(val) => {
-      setOpen(val);
-      if (val) setDraftRpc(rpcUrl);
-    }}>
+    <Popover
+      open={open}
+      onOpenChange={(val) => {
+        setOpen(val);
+        if (val) setDraftRpc(rpcUrl);
+      }}
+    >
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="text-xs font-mono text-[#888882] hover:text-[#EDEDEC] transition-colors flex items-center gap-1 cursor-pointer select-none outline-none"
+          className="text-xs font-sans text-[#A1A19A] hover:text-[#EDEDEC] transition-colors flex items-center gap-1 cursor-pointer select-none outline-none"
         >
-          <span>[Devnet]</span>
+          <span>Devnet</span>
+          <ChevronDown className="w-3 h-3 text-[#73736E]" />
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
         sideOffset={8}
-        className="w-80 rounded-[2px] bg-[#141413] border border-[#262624] p-4 text-[#EDEDEC] shadow-2xl font-mono text-xs"
+        className="w-80 rounded-[2px] bg-[#141413] border border-[#262624] p-4 text-[#EDEDEC] shadow-2xl font-sans text-xs"
       >
         <div className="flex flex-col gap-3">
-          <label className="text-[11px] text-[#888882] uppercase tracking-wider">
+          <label className="text-xs text-[#A1A19A]">
             RPC endpoint
           </label>
           <input
@@ -80,7 +84,7 @@ export function NetworkPopover({
             <button
               type="button"
               onClick={handleApply}
-              className="px-3 py-1.5 bg-[#FF5A1F] text-[#0C0C0B] font-semibold text-xs rounded-[2px] hover:bg-[#ff713a] transition-colors cursor-pointer"
+              className="px-3 py-1.5 bg-[#FF5A1F] text-[#0C0C0B] font-medium text-xs rounded-[2px] hover:bg-[#ff713a] transition-colors cursor-pointer"
             >
               Apply
             </button>
@@ -94,13 +98,13 @@ export function NetworkPopover({
                   if (onAirdrop) onAirdrop();
                 }}
                 disabled={airdropBusy || !connected}
-                className="text-xs text-[#888882] hover:text-[#EDEDEC] disabled:opacity-40 disabled:hover:text-[#888882] transition-colors flex items-center gap-2 cursor-pointer"
+                className="text-xs text-[#A1A19A] hover:text-[#EDEDEC] disabled:opacity-40 disabled:hover:text-[#A1A19A] transition-colors flex items-center gap-2 cursor-pointer"
               >
                 {airdropBusy && <Loader2 className="w-3 h-3 animate-spin" />}
                 <span>+1.0 Devnet SOL</span>
               </button>
               {!connected && (
-                <span className="text-[10px] text-[#888882]">Connect wallet first</span>
+                <span className="text-[11px] text-[#73736E]">Connect wallet first</span>
               )}
             </div>
 
@@ -112,7 +116,7 @@ export function NetworkPopover({
                     onSeedZombies();
                   }}
                   disabled={seedBusy || !connected}
-                  className="text-xs text-[#888882] hover:text-[#D8F5C8] disabled:opacity-40 disabled:hover:text-[#888882] transition-colors flex items-center gap-2 cursor-pointer"
+                  className="text-xs text-[#A1A19A] hover:text-[#D8F5C8] disabled:opacity-40 disabled:hover:text-[#A1A19A] transition-colors flex items-center gap-2 cursor-pointer"
                 >
                   {seedBusy && <Loader2 className="w-3 h-3 animate-spin" />}
                   <span>+ Seed 3 test empty accounts</span>
