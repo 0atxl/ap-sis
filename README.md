@@ -10,17 +10,11 @@ Built for the MLH Solana Hackathon (AI track, Best Use of Solana).
 | :--- | :--- |
 | ![Details drawer](public/screenshots/details.png) | ![Mobile layout](public/screenshots/mobile.png) |
 
-<!-- Add main.png, details.png and mobile.png (390px wide) to public/screenshots/ before publishing. -->
-
-[Demo video](TODO-add-link) · [Live app](TODO-add-link-if-deployed)
-
 ---
 
 ## The problem
 
 Every token a Solana wallet has ever held, including airdrops, test tokens and dead coins, leaves behind a 165-byte token account. Each one locks a refundable deposit of 0.00203928 SOL (2,039,280 lamports). When the token balance reaches zero the account stays open, and the deposit stays locked until someone sends a `CloseAccount` instruction.
-
-TODO: replace this line with your measured number, for example "We scanned N mainnet wallets and found X empty token accounts holding Y SOL." Only use a figure you measured yourself.
 
 Closing every empty account blindly is not safe either. An empty USDC account might be about to receive a payroll payment, and closing it makes the next sender pay to recreate it. Deciding which empty accounts are junk and which are expected to be used again is the hard part.
 
@@ -62,8 +56,6 @@ The preview does not send anything on-chain. The base payment is simulated on De
 3. Create three empty test token accounts with "+ Seed 3 test empty accounts". It creates one reusable test mint and three empty accounts, locking about 0.0061 SOL.
 4. Enter a recipient, an amount and a memo, then press **Sign and send**.
 5. Open the transaction on Solscan from the confirmation. Your wallet's Devnet balance went up.
-
-TODO: after your first recorded real run, add one line here with the transaction link and the before and after balances.
 
 ## Run locally
 
@@ -125,7 +117,3 @@ Next.js 16 (App Router), TypeScript, Tailwind CSS 4, `@solana/web3.js`, `@solana
 - In preview mode the closes and log lines are illustrative. Real results need a connected wallet.
 - Closing an account is permanent for that account. If you are expecting a token again, keep its checkbox off.
 - The burner wallet keeps its secret key in browser local storage. It is for Devnet testing only.
-
-## Team
-
-TODO: add names and links.
