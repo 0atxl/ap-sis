@@ -43,13 +43,31 @@ If `TYPESAFE_API_KEY` is missing or the request fails, apsis switches to a rules
 
 ## Try it
 
-### Option A: preview without a wallet
+### Option A: one-click demo wallet
+
+No browser extension and no faucet visit. Click **Try with demo wallet**. apsis creates a burner wallet in this browser, asks the server to send it 0.05 Devnet SOL from a funder key, then creates three empty test token accounts. Signing after that is a real Devnet transaction.
+
+The funder key lives only in `DEMO_FUNDER_SECRET_KEY` on the server (a JSON array of keypair bytes). Generate one from the project folder:
+
+```bash
+node -e '
+const { Keypair } = require("@solana/web3.js");
+const fs = require("fs");
+const kp = Keypair.generate();
+fs.writeFileSync("funder.json", JSON.stringify(Array.from(kp.secretKey)));
+console.log(kp.publicKey.toBase58());
+'
+```
+
+The command prints the public address. Put the contents of `funder.json` in `.env.local` as `DEMO_FUNDER_SECRET_KEY`, fund that address with about 1 Devnet SOL at https://faucet.solana.com, and restart the dev server. `funder.json` is gitignored. Optional `DEMO_RPC_URL` overrides the Devnet RPC used for that transfer.
+
+### Option B: preview without a wallet
 
 Open the app. It loads four sample accounts (three disposable test accounts and one Devnet USDC account) and sends them through the same classification route as real accounts, so you see the full flow: the transaction grid, the ledger, the net result and the Details drawer.
 
 The preview does not send anything on-chain. The base payment is simulated on Devnet with a stand-in account as the payer. Because the sample accounts do not exist on-chain, the account closes and the log lines shown for them in preview are illustrative. Connect a wallet to see real simulation results for real accounts.
 
-### Option B: real transactions on Devnet
+### Option C: real transactions on Devnet
 
 1. Connect Phantom, Solflare or Coinbase Wallet set to Devnet. If you have no wallet, choose the burner wallet. It is a throwaway Devnet keypair stored in your browser's local storage. Never put real funds in it.
 2. Get Devnet SOL from the Devnet menu in the top bar, or from https://faucet.solana.com.
@@ -66,7 +84,7 @@ npm install
 cp .env.example .env.local
 ```
 
-Open `.env.local` and set `TYPESAFE_API_KEY`. It is the only variable the app reads, and it is optional: without it the app uses the rules-based fallback. The Devnet RPC endpoint is changed in the app, from the Devnet menu.
+Open `.env.local` and set `TYPESAFE_API_KEY` if you want Jev classifications. Without it the app uses the rules-based fallback. For the one-click demo wallet, also set `DEMO_FUNDER_SECRET_KEY` as described under Try it. The Devnet RPC endpoint is changed in the app, from the Devnet menu.
 
 ```bash
 npm run dev

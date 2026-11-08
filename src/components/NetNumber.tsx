@@ -45,7 +45,12 @@ export function NetNumber({
 
   useEffect(() => {
     if (isCompiling || error) return;
-    if (prevTargetRef.current === targetFormatted) return;
+    // A compile pass can cancel the scramble before it lands. If the target
+    // was already recorded, still paint it so a ledger toggle is not stuck.
+    if (prevTargetRef.current === targetFormatted) {
+      setDisplayText(targetFormatted);
+      return;
+    }
     prevTargetRef.current = targetFormatted;
 
     const start = performance.now();

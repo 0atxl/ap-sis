@@ -14,6 +14,7 @@ interface AccountLedgerProps {
   onToggle: (address: string) => void;
   tokenMetaMap: Record<string, { symbol: string; displayName: string }>;
   connected?: boolean;
+  preview?: boolean;
   onSeedZombies?: () => Promise<void>;
   seedBusy?: boolean;
 }
@@ -37,6 +38,7 @@ export function AccountLedger({
   onToggle,
   tokenMetaMap,
   connected = false,
+  preview = false,
   onSeedZombies,
   seedBusy = false,
 }: AccountLedgerProps) {
@@ -102,7 +104,7 @@ export function AccountLedger({
       {/* Section Header */}
       <div className="flex items-center justify-between pt-3 pb-1">
         <span className="text-xs text-[#888882]">
-          Empty accounts to close {!connected && "(sample)"}
+          Empty accounts to close {(!connected || preview) && "(sample)"}
         </span>
         {connected && zombies.length === 0 && onSeedZombies && (
           <button

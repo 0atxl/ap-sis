@@ -1,16 +1,23 @@
 "use client";
 
 import React, { useState } from "react";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DEFAULT_DEVNET_RPC } from "@/components/SolanaProvider";
+import {
+  SOLANA_FAUCET_URL,
+  copyWalletAddress,
+  isRpcFaucetClosed,
+} from "@/lib/faucet";
 import { ChevronDown, Loader2 } from "lucide-react";
 
 interface NetworkPopoverProps {
   rpcUrl: string;
   setRpcUrl: (url: string) => void;
   resetRpcUrl: () => void;
-  onAirdrop?: () => Promise<void>;
-  airdropBusy?: boolean;
+  onAfterAirdrop?: () => Promise<void>;
   onSeedZombies?: () => Promise<void>;
   seedBusy?: boolean;
   connected?: boolean;
@@ -20,14 +27,54 @@ export function NetworkPopover({
   rpcUrl,
   setRpcUrl,
   resetRpcUrl,
-  onAirdrop,
-  airdropBusy,
+  onAfterAirdrop,
   onSeedZombies,
   seedBusy,
   connected,
 }: NetworkPopoverProps) {
+  const { connection } = useConnection();
+  const { publicKey } = useWallet();
   const [open, setOpen] = useState(false);
   const [draftRpc, setDraftRpc] = useState(rpcUrl);
+  const [airdropBusy, setAirdropBusy] = useState(false);
+
+  const handleAirdrop = async () => {
+    if (!publicKey) return;
+    setAirdropBusy(true);
+    try {
+      const sig = await connection.requestAirdrop(publicKey, 1 * LAMPORTS_PER_SOL);
+      const latest = await connection.getLatestBlockhash("confirmed");
+      await connection.confirmTransaction(
+        {
+          signature: sig,
+          blockhash: latest.blockhash,
+          lastValidBlockHeight: latest.lastValidBlockHeight,
+        },
+        "confirmed"
+      );
+      toast.success("Added 1.0 SOL on Devnet");
+      await onAfterAirdrop?.();
+    } catch (err) {
+      const reason =
+        err instanceof Error ? err.message : "Airdrop request failed.";
+      if (isRpcFaucetClosed(err)) {
+        await copyWalletAddress(publicKey.toBase58());
+      }
+      toast.error(reason, {
+        duration: 12000,
+        description:
+          "Use Try with demo wallet, or request SOL at faucet.solana.com.",
+        action: {
+          label: "Open faucet",
+          onClick: () => {
+            window.open(SOLANA_FAUCET_URL, "_blank", "noopener,noreferrer");
+          },
+        },
+      });
+    } finally {
+      setAirdropBusy(false);
+    }
+  };
 
   const handleApply = () => {
     setRpcUrl(draftRpc);
@@ -95,7 +142,7 @@ export function NetworkPopover({
               <button
                 type="button"
                 onClick={() => {
-                  if (onAirdrop) onAirdrop();
+                  void handleAirdrop();
                 }}
                 disabled={airdropBusy || !connected}
                 className="text-xs text-[#A1A19A] hover:text-[#EDEDEC] disabled:opacity-40 disabled:hover:text-[#A1A19A] transition-colors flex items-center gap-2 cursor-pointer"

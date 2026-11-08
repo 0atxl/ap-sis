@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { toast } from "sonner";
-import { useRpcConfig } from "@/components/SolanaProvider";
+import { Check, Copy } from "lucide-react";
+import { BURNER_WALLET_NAME, useRpcConfig } from "@/components/SolanaProvider";
 import {
   requestJevEvaluation,
   type ZombieCandidateInput,
@@ -18,9 +19,11 @@ import {
   MAX_PACKET_BYTES,
   buildPayment,
   compile,
+  isAccountNotFoundSimulationError,
   type CompileReport,
   type OptimizationMode,
 } from "@/lib/compiler";
+import { copyWalletAddress, openFaucetWithAddress } from "@/lib/faucet";
 
 import { PaymentForm } from "@/components/PaymentForm";
 import { TransactionGrid, type ClusterInfo } from "@/components/TransactionGrid";
@@ -146,7 +149,15 @@ interface ConfirmedReceipt {
 
 export default function ApSisPage() {
   const { connection } = useConnection();
-  const { publicKey, sendTransaction, connected, disconnect } = useWallet();
+  const {
+    publicKey,
+    sendTransaction,
+    connected,
+    disconnect,
+    wallet,
+    select,
+    connect,
+  } = useWallet();
   const { setVisible } = useWalletModal();
   const { rpcUrl, setRpcUrl, resetRpcUrl } = useRpcConfig();
 
@@ -189,8 +200,20 @@ export default function ApSisPage() {
   };
 
   const [zombies, setZombies] = useState<ScannedZombieAccount[]>(INITIAL_DEMO_ZOMBIES);
-  const [airdropBusy, setAirdropBusy] = useState(false);
   const [seedBusy, setSeedBusy] = useState(false);
+  const [addressCopied, setAddressCopied] = useState(false);
+  const [demoStatus, setDemoStatus] = useState<string | null>(null);
+  const demoSetupRef = useRef(false);
+  const walletRef = useRef(wallet);
+  const publicKeyRef = useRef(publicKey);
+  const connectedRef = useRef(connected);
+  const connectRef = useRef(connect);
+  const sendRef = useRef(sendTransaction);
+  walletRef.current = wallet;
+  publicKeyRef.current = publicKey;
+  connectedRef.current = connected;
+  connectRef.current = connect;
+  sendRef.current = sendTransaction;
   const [compileBusy, setCompileBusy] = useState(false);
   const [signBusy, setSignBusy] = useState(false);
   const [simulationError, setSimulationError] = useState<string | null>(null);
@@ -202,6 +225,18 @@ export default function ApSisPage() {
   const shortenAddress = (addr: string, chars = 4) => {
     if (!addr || addr.length <= chars * 2 + 2) return addr;
     return `${addr.slice(0, chars)}...${addr.slice(-chars)}`;
+  };
+
+  const handleCopyAddress = async () => {
+    if (!publicKey) return;
+    const copied = await copyWalletAddress(publicKey.toBase58());
+    if (!copied) {
+      toast.error("Could not copy the wallet address");
+      return;
+    }
+    setAddressCopied(true);
+    toast.success("Wallet address copied");
+    window.setTimeout(() => setAddressCopied(false), 1600);
   };
 
   const refreshBalance = useCallback(async () => {
@@ -284,7 +319,9 @@ export default function ApSisPage() {
 
     if (!publicKey) {
       Promise.resolve().then(() => {
-        if (!cancelled) classifyAndHydrateCandidates(INITIAL_DEMO_ZOMBIES);
+        if (cancelled) return;
+        setBalanceLamports(null);
+        classifyAndHydrateCandidates(INITIAL_DEMO_ZOMBIES);
       });
       return () => {
         cancelled = true;
@@ -293,14 +330,17 @@ export default function ApSisPage() {
 
     connection
       .getBalance(publicKey, "confirmed")
-      .then((bal) => {
-        if (!cancelled) setBalanceLamports(bal);
-      })
-      .catch(() => {});
-
-    scanZombies(connection, publicKey)
-      .then((found) => {
-        if (!cancelled) classifyAndHydrateCandidates(found);
+      .then(async (bal) => {
+        if (cancelled || demoSetupRef.current) return;
+        setBalanceLamports(bal);
+        // A fresh keypair has no account (0 lamports). Keep the demo ledger
+        // so the studio stays filled instead of flashing an empty scan.
+        if (bal === 0) {
+          setZombies(INITIAL_DEMO_ZOMBIES);
+          return;
+        }
+        const found = await scanZombies(connection, publicKey);
+        if (!cancelled) await classifyAndHydrateCandidates(found);
       })
       .catch((err) => {
         if (!cancelled) {
@@ -338,7 +378,8 @@ export default function ApSisPage() {
 
   const runCompile = useCallback(
     async (overrideSelected?: ZombieCandidateInput[]) => {
-      const activePayer = publicKey ?? new PublicKey(DEMO_DEVNET_RECIPIENT);
+      const demoPayer = new PublicKey(DEMO_DEVNET_RECIPIENT);
+      const activePayer = publicKey ?? demoPayer;
 
       let toPubkey: PublicKey | undefined;
       const trimmedRecipient = recipient.trim();
@@ -369,15 +410,28 @@ export default function ApSisPage() {
         });
 
         const closeList = overrideSelected ?? selectedZombies;
+        const signableCloses = closeList.filter((candidate) => {
+          try {
+            new PublicKey(candidate.address);
+            return true;
+          } catch {
+            return false;
+          }
+        });
 
         const compiled = await compile(connection, baseTx, {
           mode: optMode,
-          closeCandidates: publicKey ? closeList : [],
+          closeCandidates: publicKey ? signableCloses : [],
           transferLamports,
+          fallbackPayer: publicKey ? demoPayer : undefined,
         });
 
-        // If not connected, populate realistic preview metrics matching demo
-        if (!publicKey && compiled.report.ok) {
+        const previewingUnfunded = Boolean(
+          publicKey && compiled.report.isZeroBalanceUnfunded
+        );
+
+        // Logged-out demo and unfunded burner both preview against the funded address.
+        if ((!publicKey || previewingUnfunded) && (compiled.report.ok || previewingUnfunded)) {
           const previewCloses = closeList.slice(0, 8);
           const previewRent = previewCloses.reduce(
             (sum, item) => sum + item.rentLamports,
@@ -414,18 +468,38 @@ export default function ApSisPage() {
           ];
         }
 
-        if (!compiled.report.ok) {
-          setSimulationError(compiled.report.error || "Simulation failed");
-        } else {
+        if (previewingUnfunded) {
+          compiled.report.isZeroBalanceUnfunded = true;
+          if (
+            !compiled.report.ok &&
+            isAccountNotFoundSimulationError(compiled.report.error)
+          ) {
+            compiled.report.ok = true;
+            compiled.report.error = undefined;
+          }
+        }
+
+        if (previewingUnfunded || compiled.report.ok) {
           setSimulationError(null);
+        } else {
+          setSimulationError(compiled.report.error || "Simulation failed");
         }
 
         setCompileReport(compiled.report);
         return compiled;
       } catch (err: unknown) {
-        setSimulationError(
-          err instanceof Error ? err.message : "Failed to compile transaction"
-        );
+        const message =
+          err instanceof Error ? err.message : "Failed to compile transaction";
+        if (publicKey && isAccountNotFoundSimulationError(message)) {
+          setSimulationError(null);
+          setCompileReport((prev) =>
+            prev
+              ? { ...prev, ok: true, error: undefined, isZeroBalanceUnfunded: true }
+              : prev
+          );
+        } else {
+          setSimulationError(message);
+        }
         return null;
       } finally {
         setCompileBusy(false);
@@ -436,6 +510,7 @@ export default function ApSisPage() {
       connection,
       memo,
       optMode,
+      balanceLamports,
       publicKey,
       recipient,
       selectedZombies,
@@ -450,29 +525,97 @@ export default function ApSisPage() {
     return () => clearTimeout(timer);
   }, [runCompile]);
 
-  const handleAirdrop = async () => {
-    if (!publicKey) return;
-    setAirdropBusy(true);
+  const handleAfterAirdrop = async () => {
+    const bal = await refreshBalance();
+    if (bal && bal > 0) {
+      await handleScanWalletZombies();
+    }
+  };
+
+  const handleTryDemo = async () => {
+    if (demoStatus) return;
+    demoSetupRef.current = true;
+    setDemoStatus("Creating your demo wallet");
     try {
-      const sig = await connection.requestAirdrop(
-        publicKey,
-        1 * LAMPORTS_PER_SOL
+      select(BURNER_WALLET_NAME);
+      const key = await new Promise<PublicKey>((resolve, reject) => {
+        const started = Date.now();
+        const tick = () => {
+          const currentWallet = walletRef.current;
+          const currentKey =
+            publicKeyRef.current ?? currentWallet?.adapter.publicKey ?? null;
+          if (
+            currentWallet?.adapter.name === BURNER_WALLET_NAME &&
+            currentKey
+          ) {
+            resolve(currentKey);
+            return;
+          }
+          if (
+            currentWallet?.adapter.name === BURNER_WALLET_NAME &&
+            !currentWallet.adapter.connected
+          ) {
+            void connectRef.current().catch(() => {});
+          }
+          if (Date.now() - started > 8000) {
+            reject(new Error("Demo wallet did not connect."));
+            return;
+          }
+          window.setTimeout(tick, 60);
+        };
+        tick();
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        const started = Date.now();
+        const tick = () => {
+          if (connectedRef.current && publicKeyRef.current) {
+            resolve();
+            return;
+          }
+          if (Date.now() - started > 8000) {
+            reject(new Error("Demo wallet did not connect."));
+            return;
+          }
+          window.setTimeout(tick, 60);
+        };
+        tick();
+      });
+
+      const balance = await connection.getBalance(key, "confirmed");
+      if (balance < Math.round(0.03 * LAMPORTS_PER_SOL)) {
+        const response = await fetch("/api/demo/fund", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address: key.toBase58() }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          balanceLamports?: number;
+        };
+        if (!response.ok) {
+          throw new Error(payload.error || "Could not fund the demo wallet");
+        }
+        if (typeof payload.balanceLamports === "number") {
+          setBalanceLamports(payload.balanceLamports);
+        }
+      } else {
+        setBalanceLamports(balance);
+      }
+
+      setDemoStatus("Adding test accounts");
+      await seedZombie(connection, key, sendRef.current, 3);
+      const found = await scanZombies(connection, key);
+      await classifyAndHydrateCandidates(found);
+      setBalanceLamports(await connection.getBalance(key, "confirmed"));
+      toast.success("Demo wallet ready");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not start the demo wallet"
       );
-      const latest = await connection.getLatestBlockhash("confirmed");
-      await connection.confirmTransaction(
-        {
-          signature: sig,
-          blockhash: latest.blockhash,
-          lastValidBlockHeight: latest.lastValidBlockHeight,
-        },
-        "confirmed"
-      );
-      await refreshBalance();
-      toast.success("Added 1.0 SOL on Devnet");
-    } catch {
-      toast.error("Airdrop request failed. Faucet limit may have been reached.");
     } finally {
-      setAirdropBusy(false);
+      demoSetupRef.current = false;
+      setDemoStatus(null);
     }
   };
 
@@ -504,8 +647,8 @@ export default function ApSisPage() {
       return;
     }
 
-    if (balanceLamports === 0) {
-      setSimulationError("Not enough SOL to cover the amount and fee.");
+    if (balanceLamports === 0 || compileReport?.isZeroBalanceUnfunded) {
+      await openFaucetWithAddress(publicKey.toBase58());
       return;
     }
 
@@ -591,6 +734,11 @@ export default function ApSisPage() {
     );
   };
 
+  const zeroBalancePreview = Boolean(
+    connected &&
+      (balanceLamports === 0 || compileReport?.isZeroBalanceUnfunded)
+  );
+
   // Calculations for display
   const sendingLamports =
     compileReport?.transferLamports ?? transferLamports;
@@ -623,8 +771,7 @@ export default function ApSisPage() {
               rpcUrl={rpcUrl}
               setRpcUrl={setRpcUrl}
               resetRpcUrl={resetRpcUrl}
-              onAirdrop={handleAirdrop}
-              airdropBusy={airdropBusy}
+              onAfterAirdrop={handleAfterAirdrop}
               onSeedZombies={handleSeedZombies}
               seedBusy={seedBusy}
               connected={connected}
@@ -644,6 +791,21 @@ export default function ApSisPage() {
                 <span className="font-mono">
                   <ScrambleText text={shortenAddress(publicKey.toBase58())} />
                 </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleCopyAddress();
+                  }}
+                  className="inline-flex items-center gap-1 font-sans text-xs text-[#A1A19A] hover:text-[#EDEDEC] transition-colors cursor-pointer"
+                  title="Copy wallet address for the faucet"
+                >
+                  {addressCopied ? (
+                    <Check className="w-3 h-3 text-[#D8F5C8]" />
+                  ) : (
+                    <Copy className="w-3 h-3" />
+                  )}
+                  <span>{addressCopied ? "Copied" : "Copy"}</span>
+                </button>
                 <span className="w-2 h-2 rounded-full bg-[#D8F5C8] inline-block shadow-[0_0_6px_#D8F5C8]" />
                 <button
                   type="button"
@@ -659,16 +821,53 @@ export default function ApSisPage() {
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => setVisible(true)}
-                className="text-xs font-sans font-medium text-[#FF5A1F] hover:text-[#ff7843] transition-colors cursor-pointer"
-              >
-                Connect wallet
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleTryDemo();
+                  }}
+                  disabled={Boolean(demoStatus)}
+                  className="text-xs font-sans text-[#EDEDEC] hover:text-white disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  Try with demo wallet
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVisible(true)}
+                  className="text-xs font-sans font-medium text-[#FF5A1F] hover:text-[#ff7843] transition-colors cursor-pointer"
+                >
+                  Connect wallet
+                </button>
+              </div>
             )}
           </div>
         </header>
+
+        {demoStatus && (
+          <p className="mt-3 text-xs text-[#A1A19A]">{demoStatus}</p>
+        )}
+
+        {zeroBalancePreview && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 border border-[#3a3a32] bg-[#141413] px-3 py-2 text-xs text-[#EDEDEC]">
+            <span>
+              {wallet?.adapter.name.toLowerCase().includes("burner")
+                ? "Burner Wallet"
+                : "Wallet"}{" "}
+              connected (0 SOL). Displaying verified Devnet preview.
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (publicKey) void openFaucetWithAddress(publicKey.toBase58());
+              }}
+              className="text-[#FF5A1F] underline underline-offset-4 cursor-pointer"
+            >
+              Fund Wallet via Faucet
+            </button>
+            <span className="text-[#A1A19A]">to sign on-chain.</span>
+          </div>
+        )}
 
         {/* 2. STRUCTURED PAYMENT FORM */}
         <PaymentForm
@@ -708,6 +907,7 @@ export default function ApSisPage() {
               onToggle={toggleZombie}
               tokenMetaMap={tokenMetaMap}
               connected={connected}
+              preview={zeroBalancePreview}
               onSeedZombies={handleSeedZombies}
               seedBusy={seedBusy}
             />
@@ -736,6 +936,7 @@ export default function ApSisPage() {
             isCompiling={compileBusy}
             isSigning={signBusy}
             hasError={Boolean(simulationError)}
+            needsFunding={zeroBalancePreview}
             optMode={optMode}
             onOptModeChange={setOptMode}
             onSign={handleSendAndReclaim}
@@ -759,7 +960,7 @@ export default function ApSisPage() {
         activeTab={detailsTab}
         onTabChange={setDetailsTab}
         onClearActivity={handleClearActivity}
-        isPreview={!connected}
+        isPreview={!connected || zeroBalancePreview}
       />
     </div>
   );

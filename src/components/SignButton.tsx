@@ -13,6 +13,7 @@ interface SignButtonProps {
   onOptModeChange: (mode: OptimizationMode) => void;
   onSign: () => void;
   onConnect: () => void;
+  needsFunding?: boolean;
   onCancel?: () => void;
   transferLamports?: number;
   reclaimCount?: number;
@@ -29,6 +30,7 @@ export function SignButton({
   onOptModeChange,
   onSign,
   onConnect,
+  needsFunding = false,
   onCancel,
   transferLamports = 1_000_000,
   reclaimCount = 0,
@@ -58,6 +60,9 @@ export function SignButton({
     }
     if (isCompiling) {
       return "Compiling";
+    }
+    if (needsFunding) {
+      return "Fund wallet to sign";
     }
     if (transferLamports === 0 && reclaimCount > 0) {
       return `Sign and reclaim (${reclaimCount})`;

@@ -116,6 +116,11 @@ export interface CompileReport {
   netBalanceChangeLamports: number; // reclaimedRent - totalFee - transfer
   // Logs
   simulationLogs: string[];
+  /**
+   * True when the connected fee payer has 0 SOL (no on-chain account) and the
+   * preview was simulated with a funded fallback address instead.
+   */
+  isZeroBalanceUnfunded?: boolean;
 }
 
 export interface CompileResult {
@@ -485,6 +490,60 @@ async function fetchBaselineCuPriceMicroLamports(
   return { rpcMedian: 1, effectiveBaseCuPrice: 10_000 };
 }
 
+export function isAccountNotFoundSimulationError(err: unknown): boolean {
+  if (err == null) return false;
+  if (typeof err === "string") return err.includes("AccountNotFound");
+  try {
+    return JSON.stringify(err).includes("AccountNotFound");
+  } catch {
+    return false;
+  }
+}
+
+function withFeePayer(
+  tx: Transaction,
+  from: PublicKey,
+  to: PublicKey
+): Transaction {
+  const next = new Transaction();
+  next.feePayer = to;
+  for (const ix of tx.instructions) {
+    next.add(
+      new TransactionInstruction({
+        programId: ix.programId,
+        data: ix.data,
+        keys: ix.keys.map((meta) =>
+          meta.pubkey.equals(from)
+            ? {
+                pubkey: to,
+                isSigner: meta.isSigner,
+                isWritable: meta.isWritable,
+              }
+            : meta
+        ),
+      })
+    );
+  }
+  return next;
+}
+
+/**
+ * A brand-new keypair has no account, so `getBalance` is 0 and simulation
+ * returns `AccountNotFound`. Treat both as "not funded yet".
+ */
+async function payerIsUnfunded(
+  connection: Connection,
+  payer: PublicKey
+): Promise<boolean> {
+  try {
+    const balance = await connection.getBalance(payer, "confirmed");
+    if (balance === 0) return true;
+    return false;
+  } catch (err) {
+    return isAccountNotFoundSimulationError(err);
+  }
+}
+
 /**
  * Full 3-stage `ap-sis` transaction compiler:
  * - Stage A: Pre-Flight Simulation with 1,400,000 CU probe
@@ -498,6 +557,8 @@ export async function compile(
     mode: OptimizationMode;
     closeCandidates: ZombieCandidateInput[];
     transferLamports: number;
+    /** Funded account used only for preview when `payer` has never been airdropped. */
+    fallbackPayer?: PublicKey;
   }
 ): Promise<CompileResult> {
   const payer = baseTx.feePayer;
@@ -505,8 +566,33 @@ export async function compile(
     throw new Error("Transaction requires a feePayer public key.");
   }
 
+  const { mode, closeCandidates, transferLamports, fallbackPayer } = options;
+
+  if (fallbackPayer && !fallbackPayer.equals(payer)) {
+    const unfunded = await payerIsUnfunded(connection, payer);
+    if (unfunded) {
+      const preview = await compile(
+        connection,
+        withFeePayer(baseTx, payer, fallbackPayer),
+        {
+          mode,
+          closeCandidates,
+          transferLamports,
+        }
+      );
+      preview.report.isZeroBalanceUnfunded = true;
+      if (
+        !preview.report.ok &&
+        isAccountNotFoundSimulationError(preview.report.error)
+      ) {
+        preview.report.ok = true;
+        preview.report.error = undefined;
+      }
+      return preview;
+    }
+  }
+
   const baseInstructions = [...baseTx.instructions];
-  const { mode, closeCandidates, transferLamports } = options;
 
   // Stage A — Pre-Flight Simulation (1,400,000 CU probe on the base payment)
   const probeInstructions: TransactionInstruction[] = [
@@ -546,6 +632,34 @@ export async function compile(
     loadedDataLimitBytes: beforeDataLimitBytes,
     cuPriceMicroLamports: effectiveBaseCuPrice,
   });
+
+  // Fee payer was created between the balance check and this sim, or the RPC
+  // reported a non-zero balance for an account that does not exist.
+  if (
+    stageASim.err &&
+    isAccountNotFoundSimulationError(stageASim.err) &&
+    fallbackPayer &&
+    !fallbackPayer.equals(payer)
+  ) {
+    const preview = await compile(
+      connection,
+      withFeePayer(baseTx, payer, fallbackPayer),
+      {
+        mode,
+        closeCandidates,
+        transferLamports,
+      }
+    );
+    preview.report.isZeroBalanceUnfunded = true;
+    if (
+      !preview.report.ok &&
+      isAccountNotFoundSimulationError(preview.report.error)
+    ) {
+      preview.report.ok = true;
+      preview.report.error = undefined;
+    }
+    return preview;
+  }
 
   // If Stage A simulation failed, stop immediately and never let the user sign a failing transaction
   if (stageASim.err) {
@@ -615,7 +729,12 @@ export async function compile(
   const packedCloseIxs: TransactionInstruction[] = [];
 
   for (const candidate of closeCandidates.slice(0, MAX_PACKED_CLOSES)) {
-    const acctPubkey = new PublicKey(candidate.address);
+    let acctPubkey: PublicKey;
+    try {
+      acctPubkey = new PublicKey(candidate.address);
+    } catch {
+      continue;
+    }
     const programId =
       candidate.programId === TOKEN_2022_PROGRAM_ID.toBase58()
         ? TOKEN_2022_PROGRAM_ID
